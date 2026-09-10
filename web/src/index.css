@@ -148,6 +148,11 @@ body,
   border-radius: 8px;
 }
 
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
 .stats-hud {
   position: absolute;
   left: 16px;

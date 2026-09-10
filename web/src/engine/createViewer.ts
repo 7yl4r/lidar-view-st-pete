@@ -1,5 +1,4 @@
 import { Color, Ion, Viewer } from "cesium";
-import { createTerrainProvider } from "../layers/terrain";
 
 /**
  * Create a bare CesiumJS Viewer with every default network dependency removed.
@@ -25,7 +24,7 @@ export function createViewer(container: HTMLElement): Viewer {
     fullscreenButton: true,
     selectionIndicator: false,
     infoBox: false,
-    terrainProvider: createTerrainProvider(),
+    // real terrain is installed asynchronously in SceneController.init()
     contextOptions: {
       webgl: { powerPreference: "high-performance" },
     },

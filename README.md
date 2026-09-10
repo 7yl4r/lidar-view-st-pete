@@ -8,21 +8,34 @@ produced by a separate data pipeline.
 See [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) for the full plan and
 phasing.
 
-## Status: Phase 0 complete
+## Status
 
-A navigable 3D city with **stand-in data** and **no external services**:
+Navigable 3D scene, **self-hosted**, no external services at runtime.
 
-- Self-hosted CesiumJS engine assets (via `vite-plugin-cesium`)
-- Flat (ellipsoid) terrain — placeholder for self-hosted quantized-mesh
-- Stylized "aerial" basemap for the city extent + global ocean fallback (generated PNGs)
-- ~2,900 procedural extruded building footprints, batched into one primitive
-- A translucent stand-in sea surface over Tampa Bay / the gulf side
-- Presentation atmosphere: ground atmosphere, fog, HDR, soft shadows, bloom, FXAA
-- UI shell: camera bookmarks, layer toggles, quality preset, FPS / altitude / lat-lon HUD
+**Real data now** (see [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md)):
 
-Everything marked "stand-in" is a placeholder; real tiles/meshes drop into the
-same `public/assets/**` paths and `SceneController` swap points (each layer
-module documents its replacement call).
+- **LiDAR point cloud** — USGS 3DEP `FL_Peninsular_Pinellas_2018` (~0.35 m pulse
+  spacing), a ~2 M-point downtown/waterfront subset converted to self-hosted
+  3D Tiles, coloured by ASPRS classification (`scripts/fetch_lidar.py`).
+  This is also the source of building shapes — there is no footprint dataset.
+- **Terrain** — real elevation baked from the USGS 3DEP/NED-derived terrarium
+  mosaic (`scripts/bake_terrain.py`), served as a heightfield grid and read by
+  `CustomHeightmapTerrainProvider`. Deliberately ~10 m; a stand-in for a
+  LiDAR-derived DTM tileset.
+- **Vertical exaggeration** slider (1–12×, default 3×) — St. Petersburg is very
+  flat.
+
+**Still stand-in:** aerial basemap PNG + ocean fallback; procedural building
+footprints (fallback, off by default, clipped to land); flat translucent sea
+surface. Water-level / flood modeling data plugs in later.
+
+- Self-hosted CesiumJS engine assets (via `vite-plugin-cesium`); Ion token blanked
+- Presentation atmosphere: ground atmosphere, fog, soft shadows, bloom, FXAA
+- UI shell: camera bookmarks, layer toggles, quality preset, exaggeration slider,
+  FPS / altitude / lat-lon HUD
+
+Real tiles/meshes drop into the same `public/assets/**` paths; each layer module
+documents its swap point.
 
 HDR tone-mapping is **off** in the "Workstation" quality preset and **on** in
 "Viz-Center" (and only where `scene.highDynamicRangeSupported`) — some drivers
@@ -33,16 +46,22 @@ render a black frame with an HDR float buffer, which is unacceptable on a wall.
 ## Prerequisites
 
 - **Node 20+** (`.nvmrc` pins 20). `nvm use`
-- **Python 3** with `pillow` + `numpy` — only to regenerate stand-in assets
+- **Python 3** — to (re)generate data assets:
+  `pip install "laspy[lazrs]" pyproj numpy pillow`
 
 ## Quick start
 
 ```bash
 cd web
 npm install
-npm run gen:standins   # (re)generate placeholder assets into public/assets
-npm run dev            # http://localhost:5173
+npm run gen:standins    # stand-in basemap + fallback buildings  -> public/assets
+npm run bake:terrain    # real elevation grid (downloads terrarium tiles once)
+npm run fetch:lidar      # real USGS 3DEP point cloud -> 3D Tiles (~3-5 min, ~30 MB)
+npm run dev             # http://localhost:5173
 ```
+
+The generated `public/assets/**` are committed, so the three data scripts are
+only needed to refresh or re-scope them.
 
 Other scripts:
 
@@ -58,14 +77,18 @@ npm test            # vitest (unit tests for config + utils)
 
 ```
 web/
-  scripts/gen_standins.py     stand-in asset generator (PNG basemap, buildings GeoJSON)
-  public/assets/              generated placeholder data (git-ignored? no — committed for demo)
+  scripts/
+    gen_standins.py     stand-in basemap PNG + fallback building footprints
+    bake_terrain.py     real elevation -> heightfield grid
+    fetch_lidar.py      real USGS 3DEP EPT subset -> 3D Tiles point cloud
+  public/assets/        committed data (basemap/, terrain/, pointcloud/, buildings/)
   src/
-    engine/                   Viewer creation, atmosphere, camera, SceneController facade
-    layers/                   terrain / imagery / buildings / water  (+ swap-path notes)
-    scene/sceneConfig.ts      bookmarks, layer list, quality presets  (Phase 1: scene.json)
-    state/store.ts            Zustand store; UI <-> SceneController glue
-    ui/                       control panel, HUD, title overlay
-IMPLEMENTATION_PLAN.md        overall plan
-.github/workflows/ci.yml      lint + typecheck + test + build
+    engine/             Viewer creation, atmosphere, camera, SceneController facade
+    layers/             terrain / imagery / pointCloud / buildings / water (+ swap notes)
+    scene/sceneConfig.ts  bookmarks, layers, quality, terrain, exaggeration, pointcloud
+    state/store.ts      Zustand store; UI <-> SceneController glue
+    ui/                 control panel, HUD, title overlay
+docs/DATA_SOURCES.md    real data catalogue (in use / staged / for later)
+IMPLEMENTATION_PLAN.md  overall plan
+.github/workflows/ci.yml   lint + typecheck + test + build
 ```

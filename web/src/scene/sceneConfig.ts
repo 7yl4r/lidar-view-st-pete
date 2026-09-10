@@ -66,6 +66,15 @@ export const BOOKMARKS: Bookmark[] = [
     pitch: -16,
   },
   {
+    id: "lidar",
+    label: "LiDAR block (real data)",
+    lon: -82.6375,
+    lat: 27.767,
+    height: 520,
+    heading: 35,
+    pitch: -22,
+  },
+  {
     id: "shoreacres",
     label: "Shore Acres",
     lon: -82.612,
@@ -123,6 +132,31 @@ export interface LayerConfig {
 /** UI layer list — ids must match the handles registered in SceneController. */
 export const LAYERS: LayerConfig[] = [
   { id: "basemap", label: "Aerial basemap (stand-in)", defaultVisible: true },
-  { id: "buildings", label: "Buildings (stand-in)", defaultVisible: true },
+  { id: "pointcloud", label: "LiDAR point cloud (USGS 3DEP 2018)", defaultVisible: true },
+  { id: "buildings", label: "Buildings (stand-in)", defaultVisible: false },
   { id: "water", label: "Sea level (stand-in)", defaultVisible: true },
 ];
+
+/** Terrain: self-hosted heightfield baked by scripts/bake_terrain.py. */
+export const TERRAIN = {
+  mode: "baked" as "baked" | "flat",
+  gridUrl: "assets/terrain/grid.bin",
+  metaUrl: "assets/terrain/grid.json",
+  /** stop refining above this geographic tile level (grid post spacing ~40 m) */
+  maxLevel: 15,
+};
+
+/** Vertical exaggeration — St. Petersburg has very little natural relief. */
+export const EXAGGERATION = {
+  default: 3,
+  min: 1,
+  max: 12,
+  /** height below which exaggeration is not applied, keeps sea level put */
+  relativeHeight: 0,
+};
+
+/** Real LiDAR point-cloud tileset from scripts/fetch_lidar.py. */
+export const POINTCLOUD = {
+  tilesetUrl: "assets/pointcloud/tileset.json",
+  metaUrl: "assets/pointcloud/meta.json",
+};

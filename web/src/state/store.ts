@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { SceneController, SceneStats } from "../engine/SceneController";
-import { LAYERS, type QualityPreset } from "../scene/sceneConfig";
+import { EXAGGERATION, LAYERS, type QualityPreset } from "../scene/sceneConfig";
 
 interface LayerUiState {
   id: string;
@@ -16,6 +16,7 @@ interface AppState {
   layers: LayerUiState[];
   activeBookmark: string;
   quality: QualityPreset;
+  exaggeration: number;
 
   bindController: (c: SceneController) => void;
   setReady: (v: boolean) => void;
@@ -24,6 +25,7 @@ interface AppState {
   toggleLayer: (id: string) => void;
   flyTo: (bookmarkId: string) => void;
   setQuality: (p: QualityPreset) => void;
+  setExaggeration: (scale: number) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -38,6 +40,7 @@ export const useStore = create<AppState>((set, get) => ({
   })),
   activeBookmark: "overview",
   quality: "workstation",
+  exaggeration: EXAGGERATION.default,
 
   bindController: (c) => set({ controller: c }),
   setReady: (v) => set({ ready: v }),
@@ -61,5 +64,10 @@ export const useStore = create<AppState>((set, get) => ({
   setQuality: (p) => {
     get().controller?.setQuality(p);
     set({ quality: p });
+  },
+
+  setExaggeration: (scale) => {
+    get().controller?.setVerticalExaggeration(scale);
+    set({ exaggeration: scale });
   },
 }));

@@ -1,10 +1,13 @@
 import { Math as CesiumMath, Viewer } from "cesium";
 import { addBuildings } from "../layers/buildingsLayer";
 import { addImagery } from "../layers/imageryLayers";
+import { addPointCloud } from "../layers/pointCloudLayer";
+import { createTerrainProvider } from "../layers/terrain";
 import { addWater } from "../layers/waterLayer";
 import type { LayerHandle } from "../layers/types";
 import {
   BOOKMARKS,
+  EXAGGERATION,
   QUALITY,
   type QualityPreset,
 } from "../scene/sceneConfig";
@@ -43,9 +46,18 @@ export class SceneController {
     configureAtmosphere(viewer);
     this.setQuality("workstation");
 
+    viewer.scene.terrainProvider = await createTerrainProvider();
+    if (this.disposed) return;
+    this.setVerticalExaggeration(EXAGGERATION.default);
+
     const imagery = await addImagery(viewer);
     if (this.disposed) return;
     this.register(imagery.handle);
+
+    const pointCloud = await addPointCloud(viewer);
+    if (this.disposed) return;
+    if (pointCloud) this.register(pointCloud);
+
     this.register(await addBuildings(viewer));
     if (this.disposed) return;
     this.register(addWater(viewer));
@@ -53,6 +65,12 @@ export class SceneController {
     flyToBookmark(viewer, BOOKMARKS[0], 0);
 
     this.startStatsPump(onStats);
+  }
+
+  setVerticalExaggeration(scale: number): void {
+    const { scene } = this.viewer;
+    scene.verticalExaggeration = scale;
+    scene.verticalExaggerationRelativeHeight = EXAGGERATION.relativeHeight;
   }
 
   private register(handle: LayerHandle): void {

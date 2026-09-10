@@ -1,0 +1,20 @@
+{
+  "source": "AWS elevation-tiles-prod terrarium (USGS 3DEP/NED + SRTM)",
+  "sourceNote": "keyless public mosaic; ~10 m effective; stand-in for a LiDAR-derived DTM",
+  "sourceUrl": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+  "zoom": 13,
+  "bbox": {
+    "west": -82.8,
+    "south": 27.55,
+    "east": -82.35,
+    "north": 28.05
+  },
+  "width": 1024,
+  "height": 1024,
+  "rowOrder": "north-to-south",
+  "colOrder": "west-to-east",
+  "elevation": "metres, WGS84 ellipsoid approx",
+  "min": -11.866449356079102,
+  "max": 63.06980514526367,
+  "standIn": false
+}

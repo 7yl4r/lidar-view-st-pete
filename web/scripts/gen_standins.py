@@ -193,7 +193,10 @@ def make_world_fallback(w: int = 1024, h: int = 512) -> None:
 # --------------------------------------------------------------------------- #
 def make_buildings() -> None:
     # Only place footprints on land near downtown / the near-north neighborhoods.
-    b_w, b_s, b_e, b_n = -82.670, 27.740, -82.612, 27.802
+    # East edge stays inside the basemap land mask (~-82.642) so nothing sits in
+    # Tampa Bay; the stand-in buildings are a fallback only — real building shapes
+    # come from the LiDAR point cloud.
+    b_w, b_s, b_e, b_n = -82.670, 27.740, -82.646, 27.802
     block = 0.0016                       # ~150 m blocks
     gap_block = 0.00030                  # street width
     features: list[dict] = []
@@ -263,10 +266,10 @@ def make_buildings() -> None:
 
     # a few named waterfront "landmarks"
     landmarks = [
-        ("Stand-in Tower A", -82.6335, 27.7690, 118),
-        ("Stand-in Tower B", -82.6360, 27.7735, 96),
-        ("Stand-in Tower C", -82.6395, 27.7702, 134),
-        ("Stand-in Civic Hall", -82.6420, 27.7688, 42),
+        ("Stand-in Tower A", -82.6475, 27.7690, 118),
+        ("Stand-in Tower B", -82.6505, 27.7735, 96),
+        ("Stand-in Tower C", -82.6535, 27.7702, 134),
+        ("Stand-in Civic Hall", -82.6560, 27.7688, 42),
     ]
     for name, lo, la, ht in landmarks:
         dd = 0.00045

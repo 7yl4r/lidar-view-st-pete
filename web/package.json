@@ -15,7 +15,9 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen:standins": "python3 scripts/gen_standins.py"
+    "gen:standins": "python3 scripts/gen_standins.py",
+    "bake:terrain": "python3 scripts/bake_terrain.py",
+    "fetch:lidar": "python3 scripts/fetch_lidar.py"
   },
   "dependencies": {
     "cesium": "^1.128.0",
