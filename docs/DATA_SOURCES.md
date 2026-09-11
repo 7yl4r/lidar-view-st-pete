@@ -5,47 +5,50 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
 
 ---
 
-## LiDAR — IN USE
+## Terrain / elevation — IN USE
 
-### USGS 3DEP `FL_Peninsular_Pinellas_2018`
-- **What:** airborne LiDAR point cloud, whole Pinellas peninsula, ~0.35 m nominal
-  pulse spacing, ASPRS-classified (ground / building / vegetation / water / …).
-- **Access (used):** public Entwine Point Tiles (EPT), no key:
-  `https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_Peninsular_Pinellas_2018/ept.json`
-  (16.8 B points total; CRS EPSG:3857; Z = NAVD88 orthometric metres).
-- **In the app:** `web/scripts/fetch_lidar.py` walks the octree for a ~2.9 × 2.4 km
-  downtown/waterfront AOI, subsamples to ~2 M points, and writes a self-hosted
-  3D Tiles point cloud (`web/public/assets/pointcloud/`) coloured by classification.
-- **Full-density LAZ tiles:** `s3://usgs-lidar` (Requester-Pays) or the National Map.
-- **Vertical caveat:** the app applies a **constant −25.5 m** shift (approx GEOID18
-  for this area) to move NAVD88 → WGS84 ellipsoid. Replace with a real geoid grid
-  (`pyproj` + GEOID18, or PDAL `filters.reprojection`) in the data pipeline.
+### USGS 3DEP OPR DEM, `FL_Peninsular_2018_D18` (real, high-res patch)
+- **What:** bare-earth DEM GeoTIFFs, same 2018 project as the LiDAR collection
+  this replaces, 2.5 ft (~0.76 m) native posting, NAD83(2011) / Florida West
+  (ftUS) (EPSG:6443), elevation in US survey feet, NAVD88 orthometric.
+- **Access:** delivered as local GeoTIFF tiles in `DEMs/` at the repo root (not
+  fetched at build time). Same collection is discoverable via
+  `https://tnmaccess.nationalmap.gov/api/v1/products` or
+  `https://portal.opentopography.org/usgsDataset?dsid=FL_Peninsular_Pinellas_2018`.
+- **In the app:** `web/scripts/bake_dem_terrain.py` mosaics the tiles, reprojects
+  to WGS84, converts feet → metres, and writes a ~1536² float32 heightfield patch
+  (`web/public/assets/terrain/dem_grid.*`) covering the downtown/waterfront AOI
+  (~3 × 3 km). `terrain.ts` blends it into the metro-wide grid below, feathered
+  at the patch edges. This is the real data that previously showed as a separate
+  LiDAR point-cloud layer — it's now baked directly into the terrain mesh instead
+  of rendered as points on top of it.
+- **Vertical caveat:** left in NAVD88 orthometric metres, **not** shifted to WGS84
+  ellipsoidal height — the correct shift for this area (≈ −25 m, GEOID18) would
+  tear a cliff into the mesh at the patch boundary since the base grid below is
+  also unshifted. Replace with a real geoid grid (`pyproj` + GEOID18) in both
+  bake scripts together if this ever needs to be geodetically correct.
+- **Visible layer:** `web/src/layers/demLayer.ts` draws the same patch as a
+  toggleable, elevation-ramp-coloured, lit mesh floating above the terrain (its
+  own exaggeration, well beyond the terrain's, purely so the shape reads —
+  see the file for the "why" on both).
 
-### Other LiDAR for later swap-in
-- **USGS 1 m DEM (bare earth), same 2018 project** — direct GeoTIFF, no key,
-  e.g. `https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1m/Projects/FL_Peninsular_2018_D18/TIFF/USGS_1M_17_x33y307_FL_Peninsular_2018_D18.tif`
-  (discover tiles via `https://tnmaccess.nationalmap.gov/api/v1/products`).
-- **NOAA Digital Coast Data Access Viewer** — `https://coast.noaa.gov/dataviewer/` —
-  coastal topo/topobathy LiDAR, custom AOI + datum + format, incl. post-storm surveys.
-- **OpenTopography** — `https://portal.opentopography.org/usgsDataset?dsid=FL_Peninsular_Pinellas_2018`
-  — subset / grid / DEM-generate the same 3DEP collection (API key for raster jobs).
-
----
-
-## Terrain / elevation — IN USE (low-res stand-in)
-
-### AWS `elevation-tiles-prod` terrarium mosaic
+### AWS `elevation-tiles-prod` terrarium mosaic (stand-in, metro-wide)
 - **What:** global elevation raster (USGS 3DEP/NED + SRTM), terrarium-encoded PNG
   XYZ tiles, keyless: `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`
 - **In the app:** `web/scripts/bake_terrain.py` samples z13 over the metro
   (bbox −82.80..−82.35, 27.55..28.05) into a 1024² float32 grid served from
-  `web/public/assets/terrain/`; `CustomHeightmapTerrainProvider` reads it at runtime.
-  Effective ~10 m — a deliberate placeholder for a LiDAR-derived DTM.
-- **Why not the 1 m DEM yet:** needs quantized-mesh tiling (CTB / a real pipeline);
-  the terrarium path gives real relief now with zero pipeline. Swap target:
-  self-hosted quantized-mesh at `/assets/terrain/` from `USGS_1M_..._D18.tif`.
+  `web/public/assets/terrain/`; `CustomHeightmapTerrainProvider` reads it at
+  runtime as the fallback outside the DEM patch above. Effective ~10 m.
 - **Note:** production must proxy/cache these tiles (or pre-bake, as we do) to keep
   the "no external services at runtime" property.
+
+### Other LiDAR/DEM sources for later swap-in
+- **NOAA Digital Coast Data Access Viewer** — `https://coast.noaa.gov/dataviewer/` —
+  coastal topo/topobathy LiDAR, custom AOI + datum + format, incl. post-storm surveys.
+- **Full-density LAZ point cloud**, same project — `s3://usgs-lidar` (Requester-Pays,
+  EPT at `https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_Peninsular_Pinellas_2018/ept.json`)
+  — useful again if a true point-cloud view (vegetation structure, non-ground detail)
+  is wanted alongside the bare-earth DEM terrain.
 
 ---
 
@@ -61,17 +64,14 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
 
 ---
 
-## Buildings — NOT a separate dataset
+## Buildings, imagery, sea level — removed
 
-No building-footprint source is planned. Building shapes come from the **LiDAR**
-(classification 6 in the point cloud now; a LiDAR DSM or a DSM−DTM extraction
-later). The procedural `stand-in` buildings in the app are a fallback, off by
-default, clipped to land.
+The Phase 0 stand-ins for these (procedural building footprints, a stylized
+basemap PNG, a flat translucent sea-level rectangle) have been removed so the
+scene is terrain + the real DEM data only. Their swap targets, if/when
+they're reintroduced:
 
----
-
-## Imagery — stand-in
-
-Stylized generated basemap for the city extent (`web/scripts/gen_standins.py`).
-Real swap: **USDA NAIP** (public domain, ~0.6 m, FL) via the National Map, tiled
-locally; or Esri/Sentinel-2 for a quick fill.
+- **Buildings:** a DSM−DTM extraction from a future LiDAR DSM, or OSM footprints.
+- **Imagery:** **USDA NAIP** (public domain, ~0.6 m, FL) via the National Map,
+  tiled locally; or Esri/Sentinel-2 for a quick fill.
+- **Sea level:** real tide/SLR data — see the Water level / flood table above.

@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
-  BASEMAP_BOUNDS,
   BOOKMARKS,
   CITY,
   LAYERS,
   QUALITY,
+  SCENE_BOUNDS,
 } from "./sceneConfig";
 
-describe("BASEMAP_BOUNDS", () => {
+describe("SCENE_BOUNDS", () => {
   it("is a well-formed rectangle", () => {
-    expect(BASEMAP_BOUNDS.west).toBeLessThan(BASEMAP_BOUNDS.east);
-    expect(BASEMAP_BOUNDS.south).toBeLessThan(BASEMAP_BOUNDS.north);
+    expect(SCENE_BOUNDS.west).toBeLessThan(SCENE_BOUNDS.east);
+    expect(SCENE_BOUNDS.south).toBeLessThan(SCENE_BOUNDS.north);
   });
 
   it("contains the city centre", () => {
-    expect(CITY.lon).toBeGreaterThan(BASEMAP_BOUNDS.west);
-    expect(CITY.lon).toBeLessThan(BASEMAP_BOUNDS.east);
-    expect(CITY.lat).toBeGreaterThan(BASEMAP_BOUNDS.south);
-    expect(CITY.lat).toBeLessThan(BASEMAP_BOUNDS.north);
+    expect(CITY.lon).toBeGreaterThan(SCENE_BOUNDS.west);
+    expect(CITY.lon).toBeLessThan(SCENE_BOUNDS.east);
+    expect(CITY.lat).toBeGreaterThan(SCENE_BOUNDS.south);
+    expect(CITY.lat).toBeLessThan(SCENE_BOUNDS.north);
   });
 });
 
@@ -27,12 +27,12 @@ describe("BOOKMARKS", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("sit inside (or just outside) the basemap extent and look downward", () => {
+  it("sit inside (or just outside) the scene bounds and look downward", () => {
     for (const b of BOOKMARKS) {
-      expect(b.lon).toBeGreaterThan(BASEMAP_BOUNDS.west - 0.1);
-      expect(b.lon).toBeLessThan(BASEMAP_BOUNDS.east + 0.1);
-      expect(b.lat).toBeGreaterThan(BASEMAP_BOUNDS.south - 0.1);
-      expect(b.lat).toBeLessThan(BASEMAP_BOUNDS.north + 0.1);
+      expect(b.lon).toBeGreaterThan(SCENE_BOUNDS.west - 0.1);
+      expect(b.lon).toBeLessThan(SCENE_BOUNDS.east + 0.1);
+      expect(b.lat).toBeGreaterThan(SCENE_BOUNDS.south - 0.1);
+      expect(b.lat).toBeLessThan(SCENE_BOUNDS.north + 0.1);
       expect(b.height).toBeGreaterThan(0);
       expect(b.pitch).toBeLessThan(0);
       expect(b.pitch).toBeGreaterThanOrEqual(-90);

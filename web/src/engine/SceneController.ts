@@ -1,9 +1,6 @@
 import { Math as CesiumMath, Viewer } from "cesium";
-import { addBuildings } from "../layers/buildingsLayer";
-import { addImagery } from "../layers/imageryLayers";
-import { addPointCloud } from "../layers/pointCloudLayer";
+import { addDemSurface, type DemSurfaceHandle } from "../layers/demLayer";
 import { createTerrainProvider } from "../layers/terrain";
-import { addWater } from "../layers/waterLayer";
 import type { LayerHandle } from "../layers/types";
 import {
   BOOKMARKS,
@@ -32,6 +29,7 @@ const STATS_INTERVAL_MS = 250;
 export class SceneController {
   readonly viewer: Viewer;
   private readonly layers = new Map<string, LayerHandle>();
+  private demSurface: DemSurfaceHandle | null = null;
   private disposed = false;
   private detachStats?: () => void;
 
@@ -50,17 +48,12 @@ export class SceneController {
     if (this.disposed) return;
     this.setVerticalExaggeration(EXAGGERATION.default);
 
-    const imagery = await addImagery(viewer);
+    const demSurface = await addDemSurface(viewer, EXAGGERATION.default);
     if (this.disposed) return;
-    this.register(imagery.handle);
-
-    const pointCloud = await addPointCloud(viewer);
-    if (this.disposed) return;
-    if (pointCloud) this.register(pointCloud);
-
-    this.register(await addBuildings(viewer));
-    if (this.disposed) return;
-    this.register(addWater(viewer));
+    if (demSurface) {
+      this.demSurface = demSurface;
+      this.register(demSurface);
+    }
 
     flyToBookmark(viewer, BOOKMARKS[0], 0);
 
@@ -71,6 +64,7 @@ export class SceneController {
     const { scene } = this.viewer;
     scene.verticalExaggeration = scale;
     scene.verticalExaggerationRelativeHeight = EXAGGERATION.relativeHeight;
+    this.demSurface?.setExaggeration(scale);
   }
 
   private register(handle: LayerHandle): void {

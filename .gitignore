@@ -31,3 +31,11 @@ pnpm-debug.log*
 __pycache__/
 *.pyc
 .venv/
+
+# source DEM GeoTIFFs (tens of MB; regenerate/redeliver locally, keep out of
+# git so the repo stays well within GitHub's size limits -- the derived
+# heightfield grid baked from these, web/public/assets/terrain/dem_grid.*, is
+# small enough to stay committed like the rest of public/assets/**)
+/DEMs/
+
+

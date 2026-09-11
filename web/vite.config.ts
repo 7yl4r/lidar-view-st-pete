@@ -10,6 +10,11 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    allowedHosts: ["manglillo.marine.usf.edu"],
+  },
+  preview: {
+    host: true,
+    allowedHosts: ["manglillo.marine.usf.edu"],
   },
   build: {
     target: "es2022",

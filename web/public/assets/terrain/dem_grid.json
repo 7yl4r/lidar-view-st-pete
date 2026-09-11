@@ -1,0 +1,24 @@
+{
+  "source": "USGS 3DEP OPR DEM, FL_Peninsular_2018_D18 (local GeoTIFF tiles)",
+  "sourceNote": "4 tiles mosaicked, 2.5 ft native posting, resampled to this grid; bare-earth NAVD88 orthometric metres, NOT shifted to WGS84 ellipsoidal height (kept in the same approximation as the base grid so the two blend without a seam -- replace with a real geoid model for production)",
+  "sourceFiles": [
+    "USGS_OPR_FL_Peninsular_2018_D18_DEM474790.tif",
+    "USGS_OPR_FL_Peninsular_2018_D18_DEM474791.tif",
+    "USGS_OPR_FL_Peninsular_2018_D18_DEM475090.tif",
+    "USGS_OPR_FL_Peninsular_2018_D18_DEM475091.tif"
+  ],
+  "bbox": {
+    "west": -82.65309361415551,
+    "south": 27.757215286287007,
+    "east": -82.62201101211733,
+    "north": 27.784864600441082
+  },
+  "width": 1536,
+  "height": 1536,
+  "rowOrder": "north-to-south",
+  "colOrder": "west-to-east",
+  "elevation": "metres, WGS84 ellipsoid approx",
+  "min": -0.5532895922660828,
+  "max": 21.140010833740234,
+  "standIn": false
+}

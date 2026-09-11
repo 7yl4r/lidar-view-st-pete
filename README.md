@@ -14,20 +14,19 @@ Navigable 3D scene, **self-hosted**, no external services at runtime.
 
 **Real data now** (see [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md)):
 
-- **LiDAR point cloud** — USGS 3DEP `FL_Peninsular_Pinellas_2018` (~0.35 m pulse
-  spacing), a ~2 M-point downtown/waterfront subset converted to self-hosted
-  3D Tiles, coloured by ASPRS classification (`scripts/fetch_lidar.py`).
-  This is also the source of building shapes — there is no footprint dataset.
-- **Terrain** — real elevation baked from the USGS 3DEP/NED-derived terrarium
-  mosaic (`scripts/bake_terrain.py`), served as a heightfield grid and read by
-  `CustomHeightmapTerrainProvider`. Deliberately ~10 m; a stand-in for a
-  LiDAR-derived DTM tileset.
+- **Terrain** — a metro-wide stand-in heightfield baked from the USGS 3DEP/NED-derived
+  terrarium mosaic (`scripts/bake_terrain.py`, ~10 m effective), with a real
+  high-resolution patch blended in over the downtown/waterfront AOI, baked from local
+  USGS 3DEP OPR DEM GeoTIFFs (`DEMs/*.tif`, 2.5 ft posting) by
+  `scripts/bake_dem_terrain.py`. Both are served as heightfield grids read by
+  `CustomHeightmapTerrainProvider`.
 - **Vertical exaggeration** slider (1–12×, default 3×) — St. Petersburg is very
   flat.
 
-**Still stand-in:** aerial basemap PNG + ocean fallback; procedural building
-footprints (fallback, off by default, clipped to land); flat translucent sea
-surface. Water-level / flood modeling data plugs in later.
+**Still stand-in:** the metro-wide terrain outside the DEM patch. No basemap
+imagery, buildings, or sea-level layer are currently rendered — the scene is
+terrain + the DEM surface layer only. Water-level / flood modeling data plugs
+in later.
 
 - Self-hosted CesiumJS engine assets (via `vite-plugin-cesium`); Ion token blanked
 - Presentation atmosphere: ground atmosphere, fog, soft shadows, bloom, FXAA
@@ -47,20 +46,19 @@ render a black frame with an HDR float buffer, which is unacceptable on a wall.
 
 - **Node 20+** (`.nvmrc` pins 20). `nvm use`
 - **Python 3** — to (re)generate data assets:
-  `pip install "laspy[lazrs]" pyproj numpy pillow`
+  `pip install numpy pillow rasterio`
 
 ## Quick start
 
 ```bash
 cd web
 npm install
-npm run gen:standins    # stand-in basemap + fallback buildings  -> public/assets
-npm run bake:terrain    # real elevation grid (downloads terrarium tiles once)
-npm run fetch:lidar      # real USGS 3DEP point cloud -> 3D Tiles (~3-5 min, ~30 MB)
+npm run bake:terrain    # metro-wide elevation grid (downloads terrarium tiles once)
+npm run bake:dem        # real high-res elevation patch from DEMs/*.tif -> public/assets
 npm run dev             # http://localhost:5173
 ```
 
-The generated `public/assets/**` are committed, so the three data scripts are
+The generated `public/assets/**` are committed, so the two data scripts are
 only needed to refresh or re-scope them.
 
 Other scripts:
@@ -78,16 +76,16 @@ npm test            # vitest (unit tests for config + utils)
 ```
 web/
   scripts/
-    gen_standins.py     stand-in basemap PNG + fallback building footprints
-    bake_terrain.py     real elevation -> heightfield grid
-    fetch_lidar.py      real USGS 3DEP EPT subset -> 3D Tiles point cloud
-  public/assets/        committed data (basemap/, terrain/, pointcloud/, buildings/)
+    bake_terrain.py     metro-wide elevation -> heightfield grid (stand-in)
+    bake_dem_terrain.py real elevation from ../DEMs/*.tif -> heightfield patch
+  public/assets/        committed data (terrain/)
   src/
     engine/             Viewer creation, atmosphere, camera, SceneController facade
-    layers/             terrain / imagery / pointCloud / buildings / water (+ swap notes)
-    scene/sceneConfig.ts  bookmarks, layers, quality, terrain, exaggeration, pointcloud
+    layers/             terrain (heightfield) / demLayer (visible DEM surface)
+    scene/sceneConfig.ts  bookmarks, layers, quality, terrain, exaggeration
     state/store.ts      Zustand store; UI <-> SceneController glue
     ui/                 control panel, HUD, title overlay
+DEMs/                   source USGS DEM GeoTIFFs consumed by bake_dem_terrain.py
 docs/DATA_SOURCES.md    real data catalogue (in use / staged / for later)
 IMPLEMENTATION_PLAN.md  overall plan
 .github/workflows/ci.yml   lint + typecheck + test + build

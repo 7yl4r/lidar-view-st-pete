@@ -27,10 +27,11 @@ export const CITY = {
 } as const;
 
 /**
- * Geographic extent of the stand-in aerial basemap PNG.
- * MUST match WEST/SOUTH/EAST/NORTH in `scripts/gen_standins.py`.
+ * General geographic extent of the area of interest (roughly the St.
+ * Petersburg / Pinellas peninsula with Tampa Bay to the east), used to
+ * sanity-check bookmark placement.
  */
-export const BASEMAP_BOUNDS = {
+export const SCENE_BOUNDS = {
   west: -82.78,
   south: 27.63,
   east: -82.55,
@@ -66,8 +67,8 @@ export const BOOKMARKS: Bookmark[] = [
     pitch: -16,
   },
   {
-    id: "lidar",
-    label: "LiDAR block (real data)",
+    id: "dem",
+    label: "Real terrain (USGS DEM)",
     lon: -82.6375,
     lat: 27.767,
     height: 520,
@@ -131,17 +132,20 @@ export interface LayerConfig {
 
 /** UI layer list — ids must match the handles registered in SceneController. */
 export const LAYERS: LayerConfig[] = [
-  { id: "basemap", label: "Aerial basemap (stand-in)", defaultVisible: true },
-  { id: "pointcloud", label: "LiDAR point cloud (USGS 3DEP 2018)", defaultVisible: true },
-  { id: "buildings", label: "Buildings (stand-in)", defaultVisible: false },
-  { id: "water", label: "Sea level (stand-in)", defaultVisible: true },
+  { id: "dem", label: "DEM surface (USGS 3DEP, real data)", defaultVisible: true },
 ];
 
-/** Terrain: self-hosted heightfield baked by scripts/bake_terrain.py. */
+/**
+ * Terrain: a metro-wide stand-in heightfield baked by `scripts/bake_terrain.py`,
+ * with a real high-resolution patch — from local USGS DEM GeoTIFFs, baked by
+ * `scripts/bake_dem_terrain.py` — blended in over the downtown/waterfront AOI.
+ */
 export const TERRAIN = {
   mode: "baked" as "baked" | "flat",
   gridUrl: "assets/terrain/grid.bin",
   metaUrl: "assets/terrain/grid.json",
+  demGridUrl: "assets/terrain/dem_grid.bin",
+  demMetaUrl: "assets/terrain/dem_grid.json",
   /** stop refining above this geographic tile level (grid post spacing ~40 m) */
   maxLevel: 15,
 };
@@ -150,13 +154,7 @@ export const TERRAIN = {
 export const EXAGGERATION = {
   default: 3,
   min: 1,
-  max: 12,
+  max: 40,
   /** height below which exaggeration is not applied, keeps sea level put */
   relativeHeight: 0,
-};
-
-/** Real LiDAR point-cloud tileset from scripts/fetch_lidar.py. */
-export const POINTCLOUD = {
-  tilesetUrl: "assets/pointcloud/tileset.json",
-  metaUrl: "assets/pointcloud/meta.json",
 };
