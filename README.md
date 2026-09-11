@@ -48,18 +48,34 @@ render a black frame with an HDR float buffer, which is unacceptable on a wall.
 - **Python 3** — to (re)generate data assets:
   `pip install numpy pillow rasterio`
 
+## Data
+
+The real terrain patch is built from Florida statewide LiDAR-derived DEM
+GeoTIFFs — **not included in this repo**. Download the DEM tiles covering
+your area of interest from the Florida Geographic Information Office:
+
+> https://www.floridagio.gov/pages/lidar-resources
+
+Drop the downloaded `.tif` tile(s) into a `DEMs/` folder at the repo root
+(create it if it doesn't exist), then bake them (below). `DEMs/` and its baked
+output (`web/public/assets/terrain/dem_grid.*`) are both gitignored — nobody
+commits raw or processed LiDAR data here; each developer sources and
+processes their own copy.
+
 ## Quick start
 
 ```bash
 cd web
 npm install
 npm run bake:terrain    # metro-wide elevation grid (downloads terrarium tiles once)
-npm run bake:dem        # real high-res elevation patch from DEMs/*.tif -> public/assets
+npm run bake:dem        # process ../DEMs/*.tif -> real high-res elevation patch
 npm run dev             # http://localhost:5173
 ```
 
-The generated `public/assets/**` are committed, so the two data scripts are
-only needed to refresh or re-scope them.
+`bake:dem` requires `DEMs/` to be populated first (see **Data** above) and
+will error out otherwise. `web/public/assets/terrain/grid.bin` (the metro-wide
+stand-in) is the one generated asset that *is* committed; everything derived
+from the DEMs is regenerated locally by each developer, never committed.
 
 Other scripts:
 
@@ -76,16 +92,18 @@ npm test            # vitest (unit tests for config + utils)
 ```
 web/
   scripts/
-    bake_terrain.py     metro-wide elevation -> heightfield grid (stand-in)
-    bake_dem_terrain.py real elevation from ../DEMs/*.tif -> heightfield patch
-  public/assets/        committed data (terrain/)
+    bake_terrain.py     metro-wide elevation -> heightfield grid (stand-in, committed)
+    bake_dem_terrain.py real elevation from ../DEMs/*.tif -> heightfield patch (gitignored)
+  public/assets/
+    terrain/grid.bin, grid.json          committed (metro-wide stand-in)
+    terrain/dem_grid.bin, dem_grid.json  gitignored (baked from DEMs/ locally)
   src/
     engine/             Viewer creation, atmosphere, camera, SceneController facade
     layers/             terrain (heightfield) / demLayer (visible DEM surface)
     scene/sceneConfig.ts  bookmarks, layers, quality, terrain, exaggeration
     state/store.ts      Zustand store; UI <-> SceneController glue
     ui/                 control panel, HUD, title overlay
-DEMs/                   source USGS DEM GeoTIFFs consumed by bake_dem_terrain.py
+DEMs/                   gitignored -- source DEM GeoTIFFs, see "Data" above
 docs/DATA_SOURCES.md    real data catalogue (in use / staged / for later)
 IMPLEMENTATION_PLAN.md  overall plan
 .github/workflows/ci.yml   lint + typecheck + test + build

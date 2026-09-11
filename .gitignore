@@ -32,10 +32,14 @@ __pycache__/
 *.pyc
 .venv/
 
-# source DEM GeoTIFFs (tens of MB; regenerate/redeliver locally, keep out of
-# git so the repo stays well within GitHub's size limits -- the derived
-# heightfield grid baked from these, web/public/assets/terrain/dem_grid.*, is
-# small enough to stay committed like the rest of public/assets/**)
+# source DEM GeoTIFFs -- not distributed with the repo. Download them
+# yourself from https://www.floridagio.gov/pages/lidar-resources into this
+# folder, then run `npm run bake:dem` (see README "Data" section).
 /DEMs/
+
+# ...and its baked output: also not committed, regenerate with
+# `npm run bake:dem` after populating DEMs/ above.
+/web/public/assets/terrain/dem_grid.bin
+/web/public/assets/terrain/dem_grid.json
 
 

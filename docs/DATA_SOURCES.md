@@ -11,8 +11,12 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
 - **What:** bare-earth DEM GeoTIFFs, same 2018 project as the LiDAR collection
   this replaces, 2.5 ft (~0.76 m) native posting, NAD83(2011) / Florida West
   (ftUS) (EPSG:6443), elevation in US survey feet, NAVD88 orthometric.
-- **Access:** delivered as local GeoTIFF tiles in `DEMs/` at the repo root (not
-  fetched at build time). Same collection is discoverable via
+- **Access:** **required manual download** — the Florida Geographic
+  Information Office's LiDAR portal,
+  `https://www.floridagio.gov/pages/lidar-resources`. Not fetched at build
+  time and not distributed with this repo; each developer downloads the
+  tile(s) for their AOI into `DEMs/` at the repo root themselves (gitignored —
+  see README "Data"). Same collection is also discoverable via
   `https://tnmaccess.nationalmap.gov/api/v1/products` or
   `https://portal.opentopography.org/usgsDataset?dsid=FL_Peninsular_Pinellas_2018`.
 - **In the app:** `web/scripts/bake_dem_terrain.py` mosaics the tiles, reprojects
@@ -21,7 +25,8 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
   (~3 × 3 km). `terrain.ts` blends it into the metro-wide grid below, feathered
   at the patch edges. This is the real data that previously showed as a separate
   LiDAR point-cloud layer — it's now baked directly into the terrain mesh instead
-  of rendered as points on top of it.
+  of rendered as points on top of it. **Also gitignored** — like the source
+  tiles, this is regenerated locally (`npm run bake:dem`), not committed.
 - **Vertical caveat:** left in NAVD88 orthometric metres, **not** shifted to WGS84
   ellipsoidal height — the correct shift for this area (≈ −25 m, GEOID18) would
   tear a cliff into the mesh at the patch boundary since the base grid below is
