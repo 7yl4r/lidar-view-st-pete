@@ -68,15 +68,21 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
   streamed a subset of that instead of using local files; see git history
   (`fetch_lidar.py`) if that approach is ever wanted again (e.g. for AOIs
   outside what's downloaded locally).
-- **In the app:** `web/scripts/bake_pointcloud.py` reads each `.laz` tile's
-  point count, decimates (random sample) to a fixed ~3M point budget spread
-  proportionally across tiles, drops noise classes (7, 18), reprojects to
-  WGS84 → ECEF, and writes one `.pnts` (3D Tiles 1.0 point cloud) per input
-  tile plus a single-level `tileset.json` (a synthetic root wrapping the tiles
-  as leaf children — no octree/LOD within a tile, unlike the EPT-based
-  approach this replaces, which had a pre-built spatial index to tile
-  against). Output is `web/public/assets/pointcloud/`, gitignored — regenerate
-  locally with `npm run bake:pointcloud`.
+- **In the app:** `web/scripts/bake_pointcloud.py` mosaics the DEM tiles
+  (native CRS/units, no reprojection needed since the LAZ points share the
+  same CRS) and drops any LAZ point whose Z falls below the DEM directly
+  beneath it — below-ground blunders (multipath, water-surface noise) that a
+  bare-earth DEM has already been cleaned of; ~20% of raw points in this AOI,
+  mostly over water. It then reads each tile's point count, decimates (random
+  sample) to a fixed ~3M point budget spread proportionally across tiles,
+  drops noise classes (7, 18), reprojects to WGS84 → ECEF, and writes one
+  `.pnts` (3D Tiles 1.0 point cloud) per input tile plus a single-level
+  `tileset.json` (a synthetic root wrapping the tiles as leaf children — no
+  octree/LOD within a tile, unlike the EPT-based approach this replaces, which
+  had a pre-built spatial index to tile against). Output is
+  `web/public/assets/pointcloud/`, gitignored — regenerate locally with
+  `npm run bake:pointcloud` (requires both `laz/` and `DEMs/` to be
+  populated).
 - **Vertical caveat:** same as the DEM — feet → metres only, **not** shifted
   to WGS84 ellipsoidal height, so it aligns with the terrain and DEM-surface
   layers instead of floating ~25 m off from them.

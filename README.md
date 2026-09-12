@@ -22,8 +22,10 @@ Navigable 3D scene, **self-hosted**, no external services at runtime.
   `CustomHeightmapTerrainProvider`.
 - **LiDAR point cloud** — a self-hosted 3D Tiles point cloud baked from local
   USGS LPC `.laz` tiles (`laz/*.laz`, full-density) by
-  `scripts/bake_pointcloud.py`, decimated to a browser-friendly point budget
-  and coloured by ASPRS classification (ground / building / water / vegetation).
+  `scripts/bake_pointcloud.py`. Points below the DEM at their X/Y are dropped
+  as below-ground noise, the rest is decimated to a browser-friendly point
+  budget and coloured by ASPRS classification (ground / building / water /
+  vegetation).
 - **Vertical exaggeration** slider (1–40×, default 3×) — St. Petersburg is very
   flat.
 
@@ -79,13 +81,14 @@ cd web
 npm install
 npm run bake:terrain     # metro-wide elevation grid (downloads terrarium tiles once)
 npm run bake:dem         # process ../DEMs/*.tif -> real high-res elevation patch
-npm run bake:pointcloud  # process ../laz/*.laz -> real point cloud (3D Tiles)
+npm run bake:pointcloud  # process ../laz/*.laz (using ../DEMs/*.tif to drop below-ground noise)
 npm run dev              # http://localhost:5173
 ```
 
-`bake:dem` and `bake:pointcloud` each require their source folder (`DEMs/` /
-`laz/`, see **Data** above) to be populated first, and will error out
-otherwise — either can be skipped if you don't have that data yet, the app
+`bake:dem` requires `DEMs/` to be populated; `bake:pointcloud` requires
+**both** `laz/` and `DEMs/` (it uses the DEM to filter the point cloud — see
+**Data** above). Each will error out if its required folder(s) are empty.
+Either bake step can be skipped if you don't have that data yet — the app
 degrades gracefully (that layer just doesn't appear). `web/public/assets/terrain/grid.bin`
 (the metro-wide stand-in) is the one generated asset that *is* committed;
 everything derived from the DEMs/LAZ is regenerated locally by each developer,
