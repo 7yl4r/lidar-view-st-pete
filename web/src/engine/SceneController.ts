@@ -1,5 +1,6 @@
 import { Math as CesiumMath, Viewer } from "cesium";
 import { addDemSurface, type DemSurfaceHandle } from "../layers/demLayer";
+import { addPointCloud } from "../layers/pointCloudLayer";
 import { createTerrainProvider } from "../layers/terrain";
 import type { LayerHandle } from "../layers/types";
 import {
@@ -54,6 +55,10 @@ export class SceneController {
       this.demSurface = demSurface;
       this.register(demSurface);
     }
+
+    const pointCloud = await addPointCloud(viewer);
+    if (this.disposed) return;
+    if (pointCloud) this.register(pointCloud);
 
     flyToBookmark(viewer, BOOKMARKS[0], 0);
 

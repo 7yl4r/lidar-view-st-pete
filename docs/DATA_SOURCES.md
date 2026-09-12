@@ -23,10 +23,8 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
   to WGS84, converts feet → metres, and writes a ~1536² float32 heightfield patch
   (`web/public/assets/terrain/dem_grid.*`) covering the downtown/waterfront AOI
   (~3 × 3 km). `terrain.ts` blends it into the metro-wide grid below, feathered
-  at the patch edges. This is the real data that previously showed as a separate
-  LiDAR point-cloud layer — it's now baked directly into the terrain mesh instead
-  of rendered as points on top of it. **Also gitignored** — like the source
-  tiles, this is regenerated locally (`npm run bake:dem`), not committed.
+  at the patch edges. **Also gitignored** — like the source tiles, this is
+  regenerated locally (`npm run bake:dem`), not committed.
 - **Vertical caveat:** left in NAVD88 orthometric metres, **not** shifted to WGS84
   ellipsoidal height — the correct shift for this area (≈ −25 m, GEOID18) would
   tear a cliff into the mesh at the patch boundary since the base grid below is
@@ -47,13 +45,43 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
 - **Note:** production must proxy/cache these tiles (or pre-bake, as we do) to keep
   the "no external services at runtime" property.
 
-### Other LiDAR/DEM sources for later swap-in
+### Other DEM sources for later swap-in
 - **NOAA Digital Coast Data Access Viewer** — `https://coast.noaa.gov/dataviewer/` —
   coastal topo/topobathy LiDAR, custom AOI + datum + format, incl. post-storm surveys.
-- **Full-density LAZ point cloud**, same project — `s3://usgs-lidar` (Requester-Pays,
-  EPT at `https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_Peninsular_Pinellas_2018/ept.json`)
-  — useful again if a true point-cloud view (vegetation structure, non-ground detail)
-  is wanted alongside the bare-earth DEM terrain.
+
+---
+
+## LiDAR point cloud — IN USE
+
+### USGS 3DEP LPC, `FL_Peninsular_2018_D18` (real, full-density)
+- **What:** discrete-return LiDAR point cloud, same 2018 project and tiles as
+  the DEM above, ASPRS-classified (ground / building / vegetation / water / …),
+  20-40M points per tile (full density — a `.tif` DEM tile's worth of ground
+  covers 100M+ raw points here).
+- **Access:** **required manual download**, same portal as the DEM —
+  `https://www.floridagio.gov/pages/lidar-resources`. Not fetched at build
+  time and not distributed with this repo; each developer downloads the LAZ
+  tile(s) for their AOI into `laz/` at the repo root themselves (gitignored —
+  see README "Data"). Also discoverable via the public Entwine Point Tiles
+  (EPT) index, `https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_Peninsular_Pinellas_2018/ept.json`
+  (EPSG:3857, whole Pinellas peninsula) — a previous version of this app
+  streamed a subset of that instead of using local files; see git history
+  (`fetch_lidar.py`) if that approach is ever wanted again (e.g. for AOIs
+  outside what's downloaded locally).
+- **In the app:** `web/scripts/bake_pointcloud.py` reads each `.laz` tile's
+  point count, decimates (random sample) to a fixed ~3M point budget spread
+  proportionally across tiles, drops noise classes (7, 18), reprojects to
+  WGS84 → ECEF, and writes one `.pnts` (3D Tiles 1.0 point cloud) per input
+  tile plus a single-level `tileset.json` (a synthetic root wrapping the tiles
+  as leaf children — no octree/LOD within a tile, unlike the EPT-based
+  approach this replaces, which had a pre-built spatial index to tile
+  against). Output is `web/public/assets/pointcloud/`, gitignored — regenerate
+  locally with `npm run bake:pointcloud`.
+- **Vertical caveat:** same as the DEM — feet → metres only, **not** shifted
+  to WGS84 ellipsoidal height, so it aligns with the terrain and DEM-surface
+  layers instead of floating ~25 m off from them.
+- **Visible layer:** `web/src/layers/pointCloudLayer.ts`, styled with point
+  attenuation + eye-dome lighting, coloured by ASPRS classification.
 
 ---
 

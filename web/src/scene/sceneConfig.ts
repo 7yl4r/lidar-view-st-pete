@@ -133,6 +133,7 @@ export interface LayerConfig {
 /** UI layer list — ids must match the handles registered in SceneController. */
 export const LAYERS: LayerConfig[] = [
   { id: "dem", label: "DEM surface (USGS 3DEP, real data)", defaultVisible: true },
+  { id: "pointcloud", label: "LiDAR point cloud (USGS 3DEP, real data)", defaultVisible: true },
 ];
 
 /**
@@ -157,4 +158,9 @@ export const EXAGGERATION = {
   max: 40,
   /** height below which exaggeration is not applied, keeps sea level put */
   relativeHeight: 0,
+};
+
+/** Real LiDAR point-cloud tileset from scripts/bake_pointcloud.py. */
+export const POINTCLOUD = {
+  tilesetUrl: "assets/pointcloud/tileset.json",
 };

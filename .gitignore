@@ -42,4 +42,12 @@ __pycache__/
 /web/public/assets/terrain/dem_grid.bin
 /web/public/assets/terrain/dem_grid.json
 
+# source LAZ point cloud tiles -- same deal as DEMs/ above (hundreds of MB;
+# download from https://www.floridagio.gov/pages/lidar-resources into this
+# folder, then run `npm run bake:pointcloud`).
+/laz/
+
+# ...and its baked output: also not committed, regenerate with
+# `npm run bake:pointcloud` after populating laz/ above.
+/web/public/assets/pointcloud/
 

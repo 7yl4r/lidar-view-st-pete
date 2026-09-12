@@ -20,13 +20,17 @@ Navigable 3D scene, **self-hosted**, no external services at runtime.
   USGS 3DEP OPR DEM GeoTIFFs (`DEMs/*.tif`, 2.5 ft posting) by
   `scripts/bake_dem_terrain.py`. Both are served as heightfield grids read by
   `CustomHeightmapTerrainProvider`.
-- **Vertical exaggeration** slider (1–12×, default 3×) — St. Petersburg is very
+- **LiDAR point cloud** — a self-hosted 3D Tiles point cloud baked from local
+  USGS LPC `.laz` tiles (`laz/*.laz`, full-density) by
+  `scripts/bake_pointcloud.py`, decimated to a browser-friendly point budget
+  and coloured by ASPRS classification (ground / building / water / vegetation).
+- **Vertical exaggeration** slider (1–40×, default 3×) — St. Petersburg is very
   flat.
 
 **Still stand-in:** the metro-wide terrain outside the DEM patch. No basemap
 imagery, buildings, or sea-level layer are currently rendered — the scene is
-terrain + the DEM surface layer only. Water-level / flood modeling data plugs
-in later.
+terrain + the DEM surface + point cloud layers only. Water-level / flood
+modeling data plugs in later.
 
 - Self-hosted CesiumJS engine assets (via `vite-plugin-cesium`); Ion token blanked
 - Presentation atmosphere: ground atmosphere, fog, soft shadows, bloom, FXAA
@@ -46,36 +50,46 @@ render a black frame with an HDR float buffer, which is unacceptable on a wall.
 
 - **Node 20+** (`.nvmrc` pins 20). `nvm use`
 - **Python 3** — to (re)generate data assets:
-  `pip install numpy pillow rasterio`
+  `pip install numpy pillow rasterio "laspy[lazrs]" pyproj`
 
 ## Data
 
-The real terrain patch is built from Florida statewide LiDAR-derived DEM
-GeoTIFFs — **not included in this repo**. Download the DEM tiles covering
-your area of interest from the Florida Geographic Information Office:
+The real terrain patch and point cloud are both built from Florida statewide
+LiDAR data — **not included in this repo**. Download the DEM GeoTIFFs and/or
+LAZ point cloud tiles covering your area of interest from the Florida
+Geographic Information Office:
 
 > https://www.floridagio.gov/pages/lidar-resources
 
-Drop the downloaded `.tif` tile(s) into a `DEMs/` folder at the repo root
-(create it if it doesn't exist), then bake them (below). `DEMs/` and its baked
-output (`web/public/assets/terrain/dem_grid.*`) are both gitignored — nobody
-commits raw or processed LiDAR data here; each developer sources and
-processes their own copy.
+Drop the downloaded files into two folders at the repo root (create them if
+they don't exist), then bake them (below):
+
+- `.tif` DEM tiles → `DEMs/`
+- `.laz` point cloud tiles → `laz/`
+
+`DEMs/` and `laz/`, and everything baked from them
+(`web/public/assets/terrain/dem_grid.*`, `web/public/assets/pointcloud/`), are
+all gitignored — nobody commits raw or processed LiDAR data here; each
+developer sources and processes their own copy.
 
 ## Quick start
 
 ```bash
 cd web
 npm install
-npm run bake:terrain    # metro-wide elevation grid (downloads terrarium tiles once)
-npm run bake:dem        # process ../DEMs/*.tif -> real high-res elevation patch
-npm run dev             # http://localhost:5173
+npm run bake:terrain     # metro-wide elevation grid (downloads terrarium tiles once)
+npm run bake:dem         # process ../DEMs/*.tif -> real high-res elevation patch
+npm run bake:pointcloud  # process ../laz/*.laz -> real point cloud (3D Tiles)
+npm run dev              # http://localhost:5173
 ```
 
-`bake:dem` requires `DEMs/` to be populated first (see **Data** above) and
-will error out otherwise. `web/public/assets/terrain/grid.bin` (the metro-wide
-stand-in) is the one generated asset that *is* committed; everything derived
-from the DEMs is regenerated locally by each developer, never committed.
+`bake:dem` and `bake:pointcloud` each require their source folder (`DEMs/` /
+`laz/`, see **Data** above) to be populated first, and will error out
+otherwise — either can be skipped if you don't have that data yet, the app
+degrades gracefully (that layer just doesn't appear). `web/public/assets/terrain/grid.bin`
+(the metro-wide stand-in) is the one generated asset that *is* committed;
+everything derived from the DEMs/LAZ is regenerated locally by each developer,
+never committed.
 
 Other scripts:
 
@@ -94,16 +108,20 @@ web/
   scripts/
     bake_terrain.py     metro-wide elevation -> heightfield grid (stand-in, committed)
     bake_dem_terrain.py real elevation from ../DEMs/*.tif -> heightfield patch (gitignored)
+    bake_pointcloud.py  real point cloud from ../laz/*.laz -> 3D Tiles (gitignored)
   public/assets/
     terrain/grid.bin, grid.json          committed (metro-wide stand-in)
     terrain/dem_grid.bin, dem_grid.json  gitignored (baked from DEMs/ locally)
+    pointcloud/                          gitignored (baked from laz/ locally)
   src/
     engine/             Viewer creation, atmosphere, camera, SceneController facade
-    layers/             terrain (heightfield) / demLayer (visible DEM surface)
+    layers/             terrain (heightfield) / demLayer (visible DEM surface) /
+                         pointCloudLayer
     scene/sceneConfig.ts  bookmarks, layers, quality, terrain, exaggeration
     state/store.ts      Zustand store; UI <-> SceneController glue
     ui/                 control panel, HUD, title overlay
 DEMs/                   gitignored -- source DEM GeoTIFFs, see "Data" above
+laz/                    gitignored -- source LAZ point cloud tiles, see "Data" above
 docs/DATA_SOURCES.md    real data catalogue (in use / staged / for later)
 IMPLEMENTATION_PLAN.md  overall plan
 .github/workflows/ci.yml   lint + typecheck + test + build

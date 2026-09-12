@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bake:terrain": "python3 scripts/bake_terrain.py",
-    "bake:dem": "python3 scripts/bake_dem_terrain.py"
+    "bake:dem": "python3 scripts/bake_dem_terrain.py",
+    "bake:pointcloud": "python3 scripts/bake_pointcloud.py"
   },
   "dependencies": {
     "cesium": "^1.128.0",
