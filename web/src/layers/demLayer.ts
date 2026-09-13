@@ -13,6 +13,7 @@ import {
   Primitive,
   Viewer,
 } from "cesium";
+import { computeHeightFrame, exaggeratedPosition } from "./exaggeration";
 import { TERRAIN } from "../scene/sceneConfig";
 import { asset } from "../util/assets";
 import type { LayerHandle } from "./types";
@@ -96,16 +97,6 @@ function quadGeometry(corners: Cartesian3[]): Geometry {
   });
 }
 
-/**
- * Extra amplification of DEM relief on top of the live vertical-exaggeration
- * slider, applied only to this illustrative overlay. St. Petersburg's true
- * relief here is ~20 m across a ~3 km patch -- even heavily exaggerated that
- * reads as a flat painted plane, not a surface, so this layer amplifies its
- * *own* height differences on top of whatever the slider is set to, to make
- * the DEM's shape legible at every exaggeration level.
- */
-const RELIEF_BOOST = 10;
-
 export interface DemSurfaceHandle extends LayerHandle {
   /** Rebuild the mesh at a new vertical exaggeration (tracks the slider). */
   setExaggeration: (scale: number) => void;
@@ -120,19 +111,52 @@ function buildPrimitive(
   const w = meta.width;
   const h = meta.height;
 
+  // Bilinear, not nearest-neighbour: this mesh's own posts are ~27 m apart
+  // (MESH_RES=110 across a ~3 km patch), far coarser than the source grid's
+  // ~2 m. Nearest-neighbour snapping to that coarse post spacing introduced a
+  // real (not artificial) elevation error of up to a metre or more at most
+  // locations -- fixed, so it didn't matter at low exaggeration, but grew
+  // linearly with the slider since this surface's height is `v * exaggeration`.
+  // That's what made ground-truth points drift away from this surface as
+  // exaggeration increased, even after removing the old relief-boost mismatch.
   const sample = (fx: number, fy: number): number => {
-    const x = Math.min(w - 1, Math.max(0, Math.round(fx)));
-    const y = Math.min(h - 1, Math.max(0, Math.round(fy)));
-    return grid[y * w + x];
+    const x0 = Math.max(0, Math.min(w - 1, Math.floor(fx)));
+    const y0 = Math.max(0, Math.min(h - 1, Math.floor(fy)));
+    const x1 = Math.min(x0 + 1, w - 1);
+    const y1 = Math.min(y0 + 1, h - 1);
+    const tx = Math.max(0, Math.min(1, fx - x0));
+    const ty = Math.max(0, Math.min(1, fy - y0));
+    const a = grid[y0 * w + x0];
+    const b = grid[y0 * w + x1];
+    const c = grid[y1 * w + x0];
+    const d = grid[y1 * w + x1];
+    return (
+      a * (1 - tx) * (1 - ty) +
+      b * tx * (1 - ty) +
+      c * (1 - tx) * ty +
+      d * tx * ty
+    );
   };
 
-  // Height above the real (equally-exaggerated) terrain is
-  // (v - meta.min) * RELIEF_BOOST + SURFACE_LIFT_M, independent of
-  // `exaggeration` -- so the overlay can never dip below the terrain it sits
-  // on, at any slider position.
-  const cornerHeight = (fx: number, fy: number): number => {
+  // Exact position via the SAME shared method pointCloudLayer.ts uses --
+  // see exaggeration.ts. `v` (real, unexaggerated metres) is what's shared;
+  // an earlier version scaled `v * exaggeration` inline here and, separately,
+  // approximated the point cloud's scaling with a per-tile transform matrix.
+  // Those were two different methods that were never guaranteed to agree --
+  // this is the fix: one function, called by both layers.
+  const cornerPosition = (
+    lonDeg: number,
+    latDeg: number,
+    fx: number,
+    fy: number,
+  ): Cartesian3 => {
     const v = sample(fx, fy);
-    return v * exaggeration + (v - meta.min) * RELIEF_BOOST + SURFACE_LIFT_M;
+    return exaggeratedPosition(
+      computeHeightFrame(lonDeg, latDeg),
+      v,
+      exaggeration,
+      SURFACE_LIFT_M,
+    );
   };
 
   const instances: GeometryInstance[] = [];
@@ -147,24 +171,22 @@ function buildPrimitive(
       const fx0 = (i / MESH_RES) * (w - 1);
       const fx1 = ((i + 1) / MESH_RES) * (w - 1);
 
-      const h00 = cornerHeight(fx0, fy0);
-      const h10 = cornerHeight(fx1, fy0);
-      const h11 = cornerHeight(fx1, fy1);
-      const h01 = cornerHeight(fx0, fy1);
-
       const corners = [
-        Cartesian3.fromDegrees(lon0, lat0, h00),
-        Cartesian3.fromDegrees(lon1, lat0, h10),
-        Cartesian3.fromDegrees(lon1, lat1, h11),
-        Cartesian3.fromDegrees(lon0, lat1, h01),
+        cornerPosition(lon0, lat0, fx0, fy0),
+        cornerPosition(lon1, lat0, fx1, fy0),
+        cornerPosition(lon1, lat1, fx1, fy1),
+        cornerPosition(lon0, lat1, fx0, fy1),
       ];
+
+      const avgV =
+        (sample(fx0, fy0) + sample(fx1, fy0) + sample(fx1, fy1) + sample(fx0, fy1)) / 4;
 
       instances.push(
         new GeometryInstance({
           geometry: quadGeometry(corners),
           attributes: {
             color: ColorGeometryInstanceAttribute.fromColor(
-              elevationColor((h00 + h10 + h11 + h01) / 4, meta.min, meta.max),
+              elevationColor(avgV, meta.min, meta.max),
             ),
           },
         }),
@@ -186,19 +208,18 @@ function buildPrimitive(
 /**
  * Visible, toggleable draped surface for the real USGS DEM patch baked by
  * `scripts/bake_dem_terrain.py` (see `terrain.ts`, which blends the same data
- * into the terrain heightfield itself, at true — not boosted — scale). This
- * layer exists purely so the real data is *visible and switchable* the way
- * the LiDAR point cloud used to be, and legibly 3D: a faceted,
- * elevation-ramp-coloured, per-facet-lit mesh floating above the ground.
+ * into the terrain heightfield itself). This layer exists purely so the real
+ * data is *visible and switchable* the way the LiDAR point cloud used to be:
+ * a faceted, elevation-ramp-coloured, per-facet-lit mesh floating a constant
+ * `SURFACE_LIFT_M` above the ground.
  *
- * Height = terrain height (same exaggeration as the real terrain, kept live
- * via `setExaggeration`) + relief boost above the patch's minimum + a small
- * constant lift -- so the overlay is mathematically guaranteed to sit at or
- * above the real terrain everywhere (never clips into it) at any
- * exaggeration. `setExaggeration` rebuilds the mesh (there's no cheap way to
- * update baked vertex heights on an existing `Primitive`), which is fine at
- * this size (~12k quads, well under a frame at typical exaggeration-slider
- * change rates).
+ * Height = terrain height, `v * exaggeration` -- the same scaling the real
+ * terrain and the point cloud use (see pointCloudLayer.ts) -- plus that fixed
+ * lift, so this layer, the terrain, and the point cloud all move together at
+ * any exaggeration instead of drifting apart. `setExaggeration` rebuilds the
+ * mesh (there's no cheap way to update baked vertex heights on an existing
+ * `Primitive`), which is fine at this size (~12k quads, well under a frame at
+ * typical exaggeration-slider change rates).
  */
 export async function addDemSurface(
   viewer: Viewer,

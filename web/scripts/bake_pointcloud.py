@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Bake a self-hosted 3D Tiles point cloud from local USGS LiDAR Point Cloud
-(LPC) .laz tiles.
+Bake a self-hosted point cloud from local USGS LiDAR Point Cloud (LPC) .laz
+tiles.
 
 Source: local full-density LAZ tiles in `../../laz/` at the repo root --
 downloaded manually (not fetched at build time; see README "Data"). Same USGS
@@ -22,16 +22,18 @@ What this does
   proportionally to a fixed total point budget -- a full-density tile here is
   20-40M points, far too many for a browser
 - drops noise classes (7, 18)
-- reprojects X/Y (state plane feet) -> WGS84 lon/lat -> ECEF, and converts Z
-  feet -> metres *without* an ellipsoid/geoid shift, matching the terrain and
+- reprojects X/Y (state plane feet) -> WGS84 lon/lat, and converts Z feet ->
+  metres *without* an ellipsoid/geoid shift, matching the terrain and
   DEM-surface layers' convention (see bake_dem_terrain.py) so the point cloud
   isn't offset ~25 m from the ground it should sit on
 - colours points by ASPRS classification (ground / building / water / veg / ...)
-- writes one `.pnts` (3D Tiles 1.0 point cloud) per input tile plus a
-  single-level tileset.json (a synthetic root wrapping the 4 tiles as leaf
-  children, refine ADD) -- no octree/LOD within a tile, unlike the old
-  EPT-based pipeline this replaces, which had a pre-built spatial index to tile
-  against and this doesn't
+- writes ONE flat binary file: lon (float64) / lat (float64) / real height in
+  metres (float32) / rgb (uint8 x3) per point, all tiles combined. No 3D
+  Tiles, no octree/LOD, no ECEF/RTC baked in -- `pointCloudLayer.ts` derives
+  each point's rendered position at runtime from lon/lat/height through the
+  exact same shared method `demLayer.ts` uses (see `exaggeration.ts`), so the
+  two can't drift apart the way a point cloud baked into absolute ECEF and a
+  terrain-relative surface can.
 
 Run:  python3 scripts/bake_pointcloud.py
 Deps: laspy[lazrs], pyproj, rasterio, numpy
@@ -72,7 +74,6 @@ DEFAULT_COLOR = (170, 170, 175)
 DROP_CLASSES = {7, 18}  # low/high noise
 
 _to_lonlat = Transformer.from_crs(SRC_CRS, 4326, always_xy=True)
-_to_ecef = Transformer.from_crs(4326, 4978, always_xy=True)
 
 
 class DemMosaic:
@@ -106,29 +107,10 @@ class DemMosaic:
         return np.ma.masked_equal(elev, self.nodata)
 
 
-def write_pnts(path: Path, positions: np.ndarray, rgb: np.ndarray,
-               rtc_center: np.ndarray) -> None:
-    n = positions.shape[0]
-    bin_body = positions.tobytes() + rgb.tobytes()
-    ft = {
-        "POINTS_LENGTH": n,
-        "RTC_CENTER": [float(v) for v in rtc_center],
-        "POSITION": {"byteOffset": 0},
-        "RGB": {"byteOffset": n * 12},
-    }
-    ft_json = json.dumps(ft, separators=(",", ":")).encode("utf-8")
-    ft_json += b" " * ((8 - (28 + len(ft_json)) % 8) % 8)          # 8-byte align
-    bin_body += b"\x00" * ((8 - len(bin_body) % 8) % 8)
-    header = b"pnts" + struct.pack(
-        "<IIIIII", 1, 28 + len(ft_json) + len(bin_body),
-        len(ft_json), len(bin_body), 0, 0,
-    )
-    path.write_bytes(header + ft_json + bin_body)
-
-
 def process_tile(
     path: Path, dem: DemMosaic, frac: float, rng: np.random.Generator,
-) -> tuple[dict | None, int]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+    """Returns (lon, lat, height_m, rgb[N,3], n_dropped_below_dem)."""
     las = laspy.read(path)
     cl = np.asarray(las.classification, dtype=np.uint8)
     x = np.asarray(las.x, dtype=np.float64)
@@ -147,56 +129,34 @@ def process_tile(
         m &= cl != dc
     if frac < 1.0:
         m &= rng.random(cl.shape) < frac
-    if not m.any():
-        return None, n_below
 
-    x = x[m]
-    y = y[m]
-    z_m = z_ft[m] * FT_TO_M
-    cl = cl[m]
-
+    x, y, z_ft, cl = x[m], y[m], z_ft[m], cl[m]
     lon, lat = _to_lonlat.transform(x, y)
-    ex, ey, ez = _to_ecef.transform(lon, lat, z_m)
-    ecef = np.column_stack([ex, ey, ez])
-    center = ecef.mean(axis=0)
-    rel = (ecef - center).astype(np.float32)
-    radius = float(np.linalg.norm(rel, axis=1).max()) + 1.0
+    height_m = (z_ft * FT_TO_M).astype(np.float32)
 
     rgb = np.empty((cl.size, 3), dtype=np.uint8)
     rgb[:] = DEFAULT_COLOR
     for c, col in CLASS_COLOR.items():
         rgb[cl == c] = col
 
-    out_name = f"{path.stem}.pnts"
-    write_pnts(OUT_DIR / out_name, rel, rgb, center)
-    return ({"uri": out_name, "center": center.tolist(), "radius": radius,
-              "count": int(cl.size)}, n_below)
+    return (
+        np.asarray(lon, dtype=np.float64),
+        np.asarray(lat, dtype=np.float64),
+        height_m,
+        rgb,
+        n_below,
+    )
 
 
-def build_tileset(tiles: list[dict]) -> dict:
-    children = [
-        {
-            "boundingVolume": {"sphere": [*t["center"], t["radius"]]},
-            "geometricError": 0.0,  # leaf: no finer replacement exists
-            "refine": "ADD",
-            "content": {"uri": t["uri"]},
-        }
-        for t in tiles
-    ]
-    centers = np.array([t["center"] for t in tiles])
-    c = centers.mean(axis=0)
-    r = float(np.max(np.linalg.norm(centers - c, axis=1)
-                      + np.array([t["radius"] for t in tiles]))) + 1.0
-    return {
-        "asset": {"version": "1.1"},
-        "geometricError": 64.0,
-        "root": {
-            "boundingVolume": {"sphere": [*c.tolist(), r]},
-            "geometricError": 32.0,
-            "refine": "ADD",
-            "children": children,
-        },
-    }
+def write_pointcloud_bin(
+    path: Path, lon: np.ndarray, lat: np.ndarray, height_m: np.ndarray, rgb: np.ndarray,
+) -> None:
+    """[lon f64 * N][lat f64 * N][height_m f32 * N][rgb u8 * N*3], all little-endian."""
+    with open(path, "wb") as f:
+        f.write(lon.astype("<f8").tobytes())
+        f.write(lat.astype("<f8").tobytes())
+        f.write(height_m.astype("<f4").tobytes())
+        f.write(rgb.astype(np.uint8).tobytes())
 
 
 def main() -> None:
@@ -213,41 +173,51 @@ def main() -> None:
     dem = DemMosaic(DEM_DIR)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for old in OUT_DIR.glob("*.pnts"):
-        old.unlink()
+    for old in list(OUT_DIR.glob("*.pnts")) + [OUT_DIR / "tileset.json"]:
+        old.unlink(missing_ok=True)
 
     rng = np.random.default_rng(1748)
-    tiles: list[dict] = []
-    written = 0
+    lon_parts: list[np.ndarray] = []
+    lat_parts: list[np.ndarray] = []
+    height_parts: list[np.ndarray] = []
+    rgb_parts: list[np.ndarray] = []
     dropped_below_dem = 0
     for path in tile_paths:
         frac = min(1.0, POINT_BUDGET * (counts[path] / total) / counts[path])
-        result, n_below = process_tile(path, dem, frac, rng)
+        lon, lat, height_m, rgb, n_below = process_tile(path, dem, frac, rng)
         dropped_below_dem += n_below
-        if result:
-            tiles.append(result)
-            written += result["count"]
-            print(f"  {path.name}: {counts[path]:,} -> {result['count']:,} points "
-                  f"({n_below:,} below DEM dropped)")
+        lon_parts.append(lon)
+        lat_parts.append(lat)
+        height_parts.append(height_m)
+        rgb_parts.append(rgb)
+        print(f"  {path.name}: {counts[path]:,} -> {lon.size:,} points "
+              f"({n_below:,} below DEM dropped)")
 
-    if not tiles:
-        raise SystemExit("no points survived filtering -- check the input tiles")
+    lon = np.concatenate(lon_parts)
+    lat = np.concatenate(lat_parts)
+    height_m = np.concatenate(height_parts)
+    rgb = np.concatenate(rgb_parts)
+    written = lon.size
 
-    (OUT_DIR / "tileset.json").write_text(json.dumps(build_tileset(tiles)))
+    write_pointcloud_bin(OUT_DIR / "pointcloud.bin", lon, lat, height_m, rgb)
     (OUT_DIR / "meta.json").write_text(json.dumps({
         "source": "USGS 3DEP LPC, FL_Peninsular_2018_D18 (local LAZ tiles)",
         "sourceNote": f"{len(tile_paths)} full-density tiles decimated to a "
-                      f"{POINT_BUDGET:,}-point budget; not shifted to WGS84 "
-                      "ellipsoidal height (kept in the same approximation as "
-                      "the terrain/DEM-surface layers so they align); points "
-                      "below the DEM (../DEMs/*.tif) at their X/Y are dropped "
-                      "as below-ground noise",
+                      f"{POINT_BUDGET:,}-point budget; height is real "
+                      "(unexaggerated) orthometric metres, not shifted to "
+                      "WGS84 ellipsoidal height (kept in the same "
+                      "approximation as the terrain/DEM-surface layers so "
+                      "they align); points below the DEM (../DEMs/*.tif) at "
+                      "their X/Y are dropped as below-ground noise",
         "sourceFiles": [p.name for p in tile_paths],
-        "pointCount": written,
-        "droppedBelowDem": dropped_below_dem,
+        "format": "pointcloud.bin: lon f64[N], lat f64[N], height_m f32[N], rgb u8[N,3]",
+        "pointCount": int(written),
+        "droppedBelowDem": int(dropped_below_dem),
+        "heightMin": float(height_m.min()),
+        "heightMax": float(height_m.max()),
         "standIn": False,
     }, indent=2) + "\n")
-    print(f"wrote {written:,} points across {len(tiles)} tiles "
+    print(f"wrote {written:,} points "
           f"({dropped_below_dem:,} below-DEM points dropped total) -> {OUT_DIR}")
 
 

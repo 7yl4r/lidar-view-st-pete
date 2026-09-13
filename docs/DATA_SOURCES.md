@@ -75,19 +75,27 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
   bare-earth DEM has already been cleaned of; ~20% of raw points in this AOI,
   mostly over water. It then reads each tile's point count, decimates (random
   sample) to a fixed ~3M point budget spread proportionally across tiles,
-  drops noise classes (7, 18), reprojects to WGS84 → ECEF, and writes one
-  `.pnts` (3D Tiles 1.0 point cloud) per input tile plus a single-level
-  `tileset.json` (a synthetic root wrapping the tiles as leaf children — no
-  octree/LOD within a tile, unlike the EPT-based approach this replaces, which
-  had a pre-built spatial index to tile against). Output is
+  drops noise classes (7, 18), reprojects X/Y to WGS84 lon/lat, and writes
+  **one flat binary file** (`pointcloud.bin`: lon/lat/height/rgb arrays, all
+  tiles combined) plus `meta.json` — not 3D Tiles. Output is
   `web/public/assets/pointcloud/`, gitignored — regenerate locally with
   `npm run bake:pointcloud` (requires both `laz/` and `DEMs/` to be
   populated).
 - **Vertical caveat:** same as the DEM — feet → metres only, **not** shifted
   to WGS84 ellipsoidal height, so it aligns with the terrain and DEM-surface
   layers instead of floating ~25 m off from them.
-- **Visible layer:** `web/src/layers/pointCloudLayer.ts`, styled with point
-  attenuation + eye-dome lighting, coloured by ASPRS classification.
+- **Visible layer:** `web/src/layers/pointCloudLayer.ts`, a plain point
+  `Primitive` with a small custom shader (per-vertex classification colour),
+  not a `Cesium3DTileset` — deliberately: Cesium's legacy `.pnts` point-cloud
+  renderer (unlike its newer glTF/`Model` pipeline) has no support at all for
+  `scene.verticalExaggeration`, and an earlier per-tile transform-matrix
+  workaround to fake it could never exactly agree with `demLayer.ts`'s exact
+  per-vertex scaling — the two would visibly diverge as the exaggeration
+  slider increased. Both layers now build positions through the same shared,
+  exact method (`web/src/layers/exaggeration.ts`), so they can't drift apart.
+  Trade-off: no 3D Tiles streaming/LOD, no eye-dome-lighting/attenuation
+  shading, and a full CPU rebuild (debounced) on every exaggeration change
+  instead of a cheap matrix update.
 
 ---
 

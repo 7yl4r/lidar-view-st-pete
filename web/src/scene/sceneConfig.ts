@@ -160,7 +160,8 @@ export const EXAGGERATION = {
   relativeHeight: 0,
 };
 
-/** Real LiDAR point-cloud tileset from scripts/bake_pointcloud.py. */
+/** Real LiDAR point cloud baked by scripts/bake_pointcloud.py. */
 export const POINTCLOUD = {
-  tilesetUrl: "assets/pointcloud/tileset.json",
+  binUrl: "assets/pointcloud/pointcloud.bin",
+  metaUrl: "assets/pointcloud/meta.json",
 };

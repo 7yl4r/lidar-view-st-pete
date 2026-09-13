@@ -20,12 +20,15 @@ Navigable 3D scene, **self-hosted**, no external services at runtime.
   USGS 3DEP OPR DEM GeoTIFFs (`DEMs/*.tif`, 2.5 ft posting) by
   `scripts/bake_dem_terrain.py`. Both are served as heightfield grids read by
   `CustomHeightmapTerrainProvider`.
-- **LiDAR point cloud** — a self-hosted 3D Tiles point cloud baked from local
-  USGS LPC `.laz` tiles (`laz/*.laz`, full-density) by
-  `scripts/bake_pointcloud.py`. Points below the DEM at their X/Y are dropped
-  as below-ground noise, the rest is decimated to a browser-friendly point
-  budget and coloured by ASPRS classification (ground / building / water /
-  vegetation).
+- **LiDAR point cloud** — a self-hosted point cloud (plain lon/lat/height/rgb,
+  not 3D Tiles) baked from local USGS LPC `.laz` tiles (`laz/*.laz`,
+  full-density) by `scripts/bake_pointcloud.py`. Points below the DEM at
+  their X/Y are dropped as below-ground noise, the rest is decimated to a
+  browser-friendly point budget and coloured by ASPRS classification
+  (ground / building / water / vegetation). Renders via the same exact
+  vertical-exaggeration method the DEM surface uses (`exaggeration.ts`), so
+  the two always agree — see `pointCloudLayer.ts` for why that ruled out
+  Cesium's 3D Tiles point-cloud renderer.
 - **Vertical exaggeration** slider (1–40×, default 3×) — St. Petersburg is very
   flat.
 
@@ -111,7 +114,7 @@ web/
   scripts/
     bake_terrain.py     metro-wide elevation -> heightfield grid (stand-in, committed)
     bake_dem_terrain.py real elevation from ../DEMs/*.tif -> heightfield patch (gitignored)
-    bake_pointcloud.py  real point cloud from ../laz/*.laz -> 3D Tiles (gitignored)
+    bake_pointcloud.py  real point cloud from ../laz/*.laz -> lon/lat/height/rgb (gitignored)
   public/assets/
     terrain/grid.bin, grid.json          committed (metro-wide stand-in)
     terrain/dem_grid.bin, dem_grid.json  gitignored (baked from DEMs/ locally)
@@ -119,7 +122,8 @@ web/
   src/
     engine/             Viewer creation, atmosphere, camera, SceneController facade
     layers/             terrain (heightfield) / demLayer (visible DEM surface) /
-                         pointCloudLayer
+                         pointCloudLayer -- demLayer and pointCloudLayer share
+                         exaggeration.ts for exact, agreeing vertical scaling
     scene/sceneConfig.ts  bookmarks, layers, quality, terrain, exaggeration
     state/store.ts      Zustand store; UI <-> SceneController glue
     ui/                 control panel, HUD, title overlay

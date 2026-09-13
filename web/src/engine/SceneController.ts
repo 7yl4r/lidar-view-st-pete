@@ -1,6 +1,6 @@
 import { Math as CesiumMath, Viewer } from "cesium";
 import { addDemSurface, type DemSurfaceHandle } from "../layers/demLayer";
-import { addPointCloud } from "../layers/pointCloudLayer";
+import { addPointCloud, type PointCloudHandle } from "../layers/pointCloudLayer";
 import { createTerrainProvider } from "../layers/terrain";
 import type { LayerHandle } from "../layers/types";
 import {
@@ -31,6 +31,7 @@ export class SceneController {
   readonly viewer: Viewer;
   private readonly layers = new Map<string, LayerHandle>();
   private demSurface: DemSurfaceHandle | null = null;
+  private pointCloud: PointCloudHandle | null = null;
   private disposed = false;
   private detachStats?: () => void;
 
@@ -56,9 +57,12 @@ export class SceneController {
       this.register(demSurface);
     }
 
-    const pointCloud = await addPointCloud(viewer);
+    const pointCloud = await addPointCloud(viewer, EXAGGERATION.default);
     if (this.disposed) return;
-    if (pointCloud) this.register(pointCloud);
+    if (pointCloud) {
+      this.pointCloud = pointCloud;
+      this.register(pointCloud);
+    }
 
     flyToBookmark(viewer, BOOKMARKS[0], 0);
 
@@ -70,6 +74,7 @@ export class SceneController {
     scene.verticalExaggeration = scale;
     scene.verticalExaggerationRelativeHeight = EXAGGERATION.relativeHeight;
     this.demSurface?.setExaggeration(scale);
+    this.pointCloud?.setExaggeration(scale);
   }
 
   private register(handle: LayerHandle): void {
