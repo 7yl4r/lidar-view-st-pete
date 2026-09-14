@@ -308,3 +308,37 @@ body,
   background: rgba(148, 163, 184, 0.15);
   border-radius: 4px;
 }
+
+.modal__legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.modal__legend li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.modal__swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.modal__swatch--ramp {
+  background: linear-gradient(
+    to right,
+    rgb(35, 35, 35),
+    rgb(225, 225, 225)
+  );
+}
