@@ -26,7 +26,11 @@ What this does
   metres *without* an ellipsoid/geoid shift, matching the terrain and
   DEM-surface layers' convention (see bake_dem_terrain.py) so the point cloud
   isn't offset ~25 m from the ground it should sit on
-- colours points by ASPRS classification (ground / building / water / veg / ...)
+- colours points by ASPRS classification (ground / building / water / veg / ...);
+  "unclassified" and any other code we don't have an explicit colour for get a
+  height-ramped grayscale (dark = low, light = high) instead of one flat grey,
+  since a flat colour is what made dense clusters of those points blend into
+  an indistinct mass
 - writes ONE flat binary file: lon (float64) / lat (float64) / real height in
   metres (float32) / rgb (uint8 x3) per point, all tiles combined. No 3D
   Tiles, no octree/LOD, no ECEF/RTC baked in -- `pointCloudLayer.ts` derives
@@ -73,6 +77,17 @@ CLASS_COLOR = {
 DEFAULT_COLOR = (170, 170, 175)
 DROP_CLASSES = {7, 18}  # low/high noise
 
+# Classes that get a height-ramped grayscale instead of their flat colour
+# above: ASPRS "unclassified" (1), plus anything not in CLASS_COLOR at all
+# (would otherwise fall through to the flat DEFAULT_COLOR). These are the
+# "big gray mass" points -- same flat shade regardless of height, so dense
+# clusters (e.g. building facades scanned as unclassified returns) blend into
+# one indistinguishable blob. Darkest at the lowest point in the whole cloud,
+# lightest at the highest.
+GRAYSCALE_CLASSES = {1}
+GRAYSCALE_MIN = 35
+GRAYSCALE_MAX = 225
+
 _to_lonlat = Transformer.from_crs(SRC_CRS, 4326, always_xy=True)
 
 
@@ -109,8 +124,8 @@ class DemMosaic:
 
 def process_tile(
     path: Path, dem: DemMosaic, frac: float, rng: np.random.Generator,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
-    """Returns (lon, lat, height_m, rgb[N,3], n_dropped_below_dem)."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+    """Returns (lon, lat, height_m, rgb[N,3], classification, n_dropped_below_dem)."""
     las = laspy.read(path)
     cl = np.asarray(las.classification, dtype=np.uint8)
     x = np.asarray(las.x, dtype=np.float64)
@@ -144,6 +159,7 @@ def process_tile(
         np.asarray(lat, dtype=np.float64),
         height_m,
         rgb,
+        cl,
         n_below,
     )
 
@@ -181,15 +197,17 @@ def main() -> None:
     lat_parts: list[np.ndarray] = []
     height_parts: list[np.ndarray] = []
     rgb_parts: list[np.ndarray] = []
+    cl_parts: list[np.ndarray] = []
     dropped_below_dem = 0
     for path in tile_paths:
         frac = min(1.0, POINT_BUDGET * (counts[path] / total) / counts[path])
-        lon, lat, height_m, rgb, n_below = process_tile(path, dem, frac, rng)
+        lon, lat, height_m, rgb, cl, n_below = process_tile(path, dem, frac, rng)
         dropped_below_dem += n_below
         lon_parts.append(lon)
         lat_parts.append(lat)
         height_parts.append(height_m)
         rgb_parts.append(rgb)
+        cl_parts.append(cl)
         print(f"  {path.name}: {counts[path]:,} -> {lon.size:,} points "
               f"({n_below:,} below DEM dropped)")
 
@@ -197,7 +215,24 @@ def main() -> None:
     lat = np.concatenate(lat_parts)
     height_m = np.concatenate(height_parts)
     rgb = np.concatenate(rgb_parts)
+    cl = np.concatenate(cl_parts)
     written = lon.size
+
+    # Grayscale height ramp for the flat-gray classes, using the height range
+    # of the WHOLE point cloud (not per-tile) so the ramp is consistent
+    # everywhere -- computed here, after concatenation, for exactly that reason.
+    use_grayscale = (
+        np.isin(cl, list(GRAYSCALE_CLASSES)) | ~np.isin(cl, list(CLASS_COLOR.keys()))
+    )
+    n_grayscale = int(use_grayscale.sum())
+    if n_grayscale:
+        h_min = float(height_m.min())
+        h_span = max(float(height_m.max()) - h_min, 1e-6)
+        t = np.clip((height_m[use_grayscale] - h_min) / h_span, 0.0, 1.0)
+        gray = np.round(GRAYSCALE_MIN + t * (GRAYSCALE_MAX - GRAYSCALE_MIN)).astype(np.uint8)
+        rgb[use_grayscale, :] = gray[:, None]
+    print(f"  grayscale height ramp applied to {n_grayscale:,} unclassified/"
+          f"unmapped points ({100 * n_grayscale / written:.1f}%)")
 
     write_pointcloud_bin(OUT_DIR / "pointcloud.bin", lon, lat, height_m, rgb)
     (OUT_DIR / "meta.json").write_text(json.dumps({
@@ -208,7 +243,12 @@ def main() -> None:
                       "WGS84 ellipsoidal height (kept in the same "
                       "approximation as the terrain/DEM-surface layers so "
                       "they align); points below the DEM (../DEMs/*.tif) at "
-                      "their X/Y are dropped as below-ground noise",
+                      "their X/Y are dropped as below-ground noise; "
+                      "unclassified/unmapped-class points are coloured by a "
+                      f"grayscale height ramp ({GRAYSCALE_MIN}-{GRAYSCALE_MAX}, "
+                      "dark=low/light=high over the full point cloud's height "
+                      "range) instead of one flat grey, so dense clusters of "
+                      "them don't blend into an indistinct mass",
         "sourceFiles": [p.name for p in tile_paths],
         "format": "pointcloud.bin: lon f64[N], lat f64[N], height_m f32[N], rgb u8[N,3]",
         "pointCount": int(written),
