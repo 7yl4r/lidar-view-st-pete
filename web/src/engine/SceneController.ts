@@ -1,4 +1,5 @@
 import { Math as CesiumMath, Viewer } from "cesium";
+import { addBuildings, type BuildingsHandle } from "../layers/buildingsLayer";
 import { addDemSurface, type DemSurfaceHandle } from "../layers/demLayer";
 import { addPointCloud, type PointCloudHandle } from "../layers/pointCloudLayer";
 import { createTerrainProvider } from "../layers/terrain";
@@ -34,6 +35,7 @@ export class SceneController {
   private readonly layers = new Map<string, LayerHandle>();
   private demSurface: DemSurfaceHandle | null = null;
   private pointCloud: PointCloudHandle | null = null;
+  private buildings: BuildingsHandle | null = null;
   private disposed = false;
   private detachStats?: () => void;
   private detachCameraSync?: () => void;
@@ -72,6 +74,13 @@ export class SceneController {
       this.register(pointCloud);
     }
 
+    const buildings = await addBuildings(viewer, initialExaggeration);
+    if (this.disposed) return;
+    if (buildings) {
+      this.buildings = buildings;
+      this.register(buildings);
+    }
+
     // Reconcile each registered layer's actual visibility with the URL (or
     // its configured default) -- the layer modules themselves always start
     // visible, so without this a `defaultVisible: false` config, or a URL
@@ -100,6 +109,7 @@ export class SceneController {
     scene.verticalExaggerationRelativeHeight = EXAGGERATION.relativeHeight;
     this.demSurface?.setExaggeration(scale);
     this.pointCloud?.setExaggeration(scale);
+    this.buildings?.setExaggeration(scale);
   }
 
   private register(handle: LayerHandle): void {

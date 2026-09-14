@@ -111,14 +111,41 @@ Status of each: **in use now**, **staged** (script written, ready to pull), or
 
 ---
 
-## Buildings, imagery, sea level — removed
+## Buildings — IN USE (estimated)
 
-The Phase 0 stand-ins for these (procedural building footprints, a stylized
-basemap PNG, a flat translucent sea-level rectangle) have been removed so the
-scene is terrain + the real DEM data only. Their swap targets, if/when
-they're reintroduced:
+### Estimated from the LiDAR point cloud, `FL_Peninsular_2018_D18`
+- **What:** building footprint polygons, **not a surveyed dataset** —
+  estimated by rasterizing where ASPRS class-6 (building) LiDAR returns land,
+  cleaning up the raster (morphological close + open), labeling connected
+  components as individual buildings, and vectorizing each one. Expect
+  rounded corners and occasional merged-together adjacent buildings, not
+  parcel-accurate outlines.
+- **Access:** derived entirely from the same local `laz/` + `DEMs/` already
+  used by `bake_pointcloud.py` / `bake_dem_terrain.py` — no separate download.
+- **In the app:** `web/scripts/bake_buildings.py`. Building height = a high
+  percentile (P90, to resist noisy outlier returns) of that building's own
+  point elevations, minus the DEM (bare-earth) elevation at its footprint
+  centroid — both real, unexaggerated orthometric metres, same convention as
+  every other real-data layer (see bake_dem_terrain.py's note on why no
+  ellipsoid shift). Output is `web/public/assets/buildings/`, gitignored —
+  regenerate locally with `npm run bake:buildings` (requires both `laz/` and
+  `DEMs/`).
+- **Visible layer:** `web/src/layers/buildingsLayer.ts` — extruded
+  `PolygonGeometry` per building, coloured by height, tracking the live
+  vertical-exaggeration slider via the same shared `exaggeration.ts`
+  convention (base and roof both scale by `v * exaggeration`) the DEM
+  surface and point cloud use.
+- **Swap target:** a surveyed footprint dataset (OSM footprints, or a county
+  parcel/building layer), if parcel-accurate outlines are ever needed instead
+  of this estimate.
 
-- **Buildings:** a DSM−DTM extraction from a future LiDAR DSM, or OSM footprints.
+---
+
+## Imagery, sea level — removed
+
+The Phase 0 stand-ins for these (a stylized basemap PNG, a flat translucent
+sea-level rectangle) have been removed. Swap targets, if/when reintroduced:
+
 - **Imagery:** **USDA NAIP** (public domain, ~0.6 m, FL) via the National Map,
   tiled locally; or Esri/Sentinel-2 for a quick fill.
 - **Sea level:** real tide/SLR data — see the Water level / flood table above.

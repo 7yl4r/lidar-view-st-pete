@@ -51,3 +51,7 @@ __pycache__/
 # `npm run bake:pointcloud` after populating laz/ above.
 /web/public/assets/pointcloud/
 
+# building footprints estimated from laz/ + DEMs/ by scripts/bake_buildings.py
+# -- also not committed, regenerate with `npm run bake:buildings`.
+/web/public/assets/buildings/
+

@@ -126,6 +126,7 @@ export interface LayerConfig {
 export const LAYERS: LayerConfig[] = [
   { id: "dem", label: "DEM surface (USGS 3DEP, real data)", defaultVisible: true },
   { id: "pointcloud", label: "LiDAR point cloud (USGS 3DEP, real data)", defaultVisible: true },
+  { id: "buildings", label: "Buildings (estimated from LiDAR)", defaultVisible: true },
 ];
 
 /**
@@ -156,4 +157,9 @@ export const EXAGGERATION = {
 export const POINTCLOUD = {
   binUrl: "assets/pointcloud/pointcloud.bin",
   metaUrl: "assets/pointcloud/meta.json",
+};
+
+/** Real building footprints estimated by scripts/bake_buildings.py. */
+export const BUILDINGS = {
+  geojsonUrl: "assets/buildings/buildings.geojson",
 };

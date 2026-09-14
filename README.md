@@ -29,13 +29,19 @@ Navigable 3D scene, **self-hosted**, no external services at runtime.
   vertical-exaggeration method the DEM surface uses (`exaggeration.ts`), so
   the two always agree — see `pointCloudLayer.ts` for why that ruled out
   Cesium's 3D Tiles point-cloud renderer.
+- **Buildings** — footprint polygons *estimated* from the same point cloud's
+  building-classified (ASPRS class 6) returns by `scripts/bake_buildings.py`:
+  rasterize, clean up, and vectorize where those returns land. Not a surveyed
+  footprint dataset — expect rounded corners and occasional merged buildings.
+  Extruded to each building's own estimated height, same exact
+  vertical-exaggeration method as the other real-data layers.
 - **Vertical exaggeration** slider (1–40×, default 3×) — St. Petersburg is very
   flat.
 
 **Still stand-in:** the metro-wide terrain outside the DEM patch. No basemap
-imagery, buildings, or sea-level layer are currently rendered — the scene is
-terrain + the DEM surface + point cloud layers only. Water-level / flood
-modeling data plugs in later.
+imagery or sea-level layer are currently rendered — the scene is terrain +
+DEM surface + point cloud + buildings only. Water-level / flood modeling data
+plugs in later.
 
 - Self-hosted CesiumJS engine assets (via `vite-plugin-cesium`); Ion token blanked
 - Presentation atmosphere: ground atmosphere, fog, soft shadows, bloom, FXAA
@@ -59,7 +65,7 @@ render a black frame with an HDR float buffer, which is unacceptable on a wall.
 
 - **Node 20+** (`.nvmrc` pins 20). `nvm use`
 - **Python 3** — to (re)generate data assets:
-  `pip install numpy pillow rasterio "laspy[lazrs]" pyproj`
+  `pip install numpy pillow rasterio "laspy[lazrs]" pyproj shapely scipy`
 
 ## Data
 
@@ -77,9 +83,10 @@ they don't exist), then bake them (below):
 - `.laz` point cloud tiles → `laz/`
 
 `DEMs/` and `laz/`, and everything baked from them
-(`web/public/assets/terrain/dem_grid.*`, `web/public/assets/pointcloud/`), are
-all gitignored — nobody commits raw or processed LiDAR data here; each
-developer sources and processes their own copy.
+(`web/public/assets/terrain/dem_grid.*`, `web/public/assets/pointcloud/`,
+`web/public/assets/buildings/`), are all gitignored — nobody commits raw or
+processed LiDAR data here; each developer sources and processes their own
+copy.
 
 ## Quick start
 
@@ -89,14 +96,16 @@ npm install
 npm run bake:terrain     # metro-wide elevation grid (downloads terrarium tiles once)
 npm run bake:dem         # process ../DEMs/*.tif -> real high-res elevation patch
 npm run bake:pointcloud  # process ../laz/*.laz (using ../DEMs/*.tif to drop below-ground noise)
+npm run bake:buildings   # process ../laz/*.laz + ../DEMs/*.tif -> estimated building footprints
 npm run dev              # http://localhost:5173
 ```
 
-`bake:dem` requires `DEMs/` to be populated; `bake:pointcloud` requires
-**both** `laz/` and `DEMs/` (it uses the DEM to filter the point cloud — see
-**Data** above). Each will error out if its required folder(s) are empty.
-Either bake step can be skipped if you don't have that data yet — the app
-degrades gracefully (that layer just doesn't appear). `web/public/assets/terrain/grid.bin`
+`bake:dem` requires `DEMs/` to be populated; `bake:pointcloud` and
+`bake:buildings` each require **both** `laz/` and `DEMs/` (both use the DEM
+— to filter the point cloud, and for building base elevations — see **Data**
+above). Each will error out if its required folder(s) are empty. Any bake
+step can be skipped if you don't have that data yet — the app degrades
+gracefully (that layer just doesn't appear). `web/public/assets/terrain/grid.bin`
 (the metro-wide stand-in) is the one generated asset that *is* committed;
 everything derived from the DEMs/LAZ is regenerated locally by each developer,
 never committed.
@@ -119,16 +128,19 @@ web/
     bake_terrain.py     metro-wide elevation -> heightfield grid (stand-in, committed)
     bake_dem_terrain.py real elevation from ../DEMs/*.tif -> heightfield patch (gitignored)
     bake_pointcloud.py  real point cloud from ../laz/*.laz -> lon/lat/height/rgb (gitignored)
+    bake_buildings.py   estimated footprints from ../laz/*.laz + ../DEMs/*.tif -> GeoJSON (gitignored)
   public/assets/
     terrain/grid.bin, grid.json          committed (metro-wide stand-in)
     terrain/dem_grid.bin, dem_grid.json  gitignored (baked from DEMs/ locally)
     pointcloud/                          gitignored (baked from laz/ locally)
+    buildings/                           gitignored (baked from laz/+DEMs/ locally)
   src/
     engine/             Viewer creation, atmosphere, camera, SceneController facade,
                          urlState.ts (camera/exaggeration/layers <-> URL query string)
     layers/             terrain (heightfield) / demLayer (visible DEM surface) /
-                         pointCloudLayer -- demLayer and pointCloudLayer share
-                         exaggeration.ts for exact, agreeing vertical scaling
+                         pointCloudLayer / buildingsLayer -- demLayer,
+                         pointCloudLayer and buildingsLayer share exaggeration.ts
+                         for exact, agreeing vertical scaling
     scene/sceneConfig.ts  bookmarks, layers, quality, terrain, exaggeration
     state/store.ts      Zustand store; UI <-> SceneController glue
     ui/                 control panel, HUD, title overlay
