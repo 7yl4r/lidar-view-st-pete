@@ -4,7 +4,6 @@ import {
   type QualityPreset,
 } from "../scene/sceneConfig";
 import { useStore } from "../state/store";
-import { BookmarksPanel } from "./BookmarksPanel";
 import { LayerToggles } from "./LayerToggles";
 
 export function ControlPanel() {
@@ -15,7 +14,6 @@ export function ControlPanel() {
 
   return (
     <div className="control-panel">
-      <BookmarksPanel />
       <LayerToggles />
 
       <section className="panel-section">

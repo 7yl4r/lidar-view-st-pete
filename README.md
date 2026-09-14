@@ -39,8 +39,12 @@ modeling data plugs in later.
 
 - Self-hosted CesiumJS engine assets (via `vite-plugin-cesium`); Ion token blanked
 - Presentation atmosphere: ground atmosphere, fog, soft shadows, bloom, FXAA
-- UI shell: camera bookmarks, layer toggles, quality preset, exaggeration slider,
-  FPS / altitude / lat-lon HUD
+- UI shell: layer toggles, quality preset, exaggeration slider, FPS / altitude /
+  lat-lon HUD
+- Shareable views: camera pose, exaggeration, and layer visibility all live in
+  the URL query string (updated via `history.replaceState`, no new history
+  entries) — copy the address bar to share the current view; opening a URL
+  with those params restores it exactly
 
 Real tiles/meshes drop into the same `public/assets/**` paths; each layer module
 documents its swap point.
@@ -120,7 +124,8 @@ web/
     terrain/dem_grid.bin, dem_grid.json  gitignored (baked from DEMs/ locally)
     pointcloud/                          gitignored (baked from laz/ locally)
   src/
-    engine/             Viewer creation, atmosphere, camera, SceneController facade
+    engine/             Viewer creation, atmosphere, camera, SceneController facade,
+                         urlState.ts (camera/exaggeration/layers <-> URL query string)
     layers/             terrain (heightfield) / demLayer (visible DEM surface) /
                          pointCloudLayer -- demLayer and pointCloudLayer share
                          exaggeration.ts for exact, agreeing vertical scaling

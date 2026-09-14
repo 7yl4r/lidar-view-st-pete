@@ -8,8 +8,15 @@ import { TitleOverlay } from "./ui/TitleOverlay";
 export function App() {
   const mountRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<SceneController | null>(null);
-  const { bindController, setReady, setStats, setError, ready, error } =
-    useStore();
+  const {
+    bindController,
+    setReady,
+    setStats,
+    setCamera,
+    setError,
+    ready,
+    error,
+  } = useStore();
 
   useEffect(() => {
     if (!mountRef.current || controllerRef.current) return;
@@ -18,7 +25,7 @@ export function App() {
     bindController(controller);
 
     controller
-      .init(setStats)
+      .init(setStats, setCamera)
       .then(() => setReady(true))
       .catch((err: unknown) => {
         console.error(err);
@@ -29,7 +36,7 @@ export function App() {
       controller.destroy();
       controllerRef.current = null;
     };
-  }, [bindController, setReady, setStats, setError]);
+  }, [bindController, setReady, setStats, setCamera, setError]);
 
   return (
     <div className="app">

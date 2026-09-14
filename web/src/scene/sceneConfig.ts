@@ -5,19 +5,11 @@
  * IMPLEMENTATION_PLAN.md §1). For now the values live here so they are easy to
  * unit-test and edit.
  */
+import type { CameraPose } from "../engine/camera";
 
-export interface Bookmark {
+export interface Bookmark extends CameraPose {
   id: string;
   label: string;
-  /** WGS84 degrees */
-  lon: number;
-  lat: number;
-  /** camera height above the ellipsoid, metres */
-  height: number;
-  /** degrees */
-  heading: number;
-  /** degrees, negative looks down */
-  pitch: number;
 }
 
 export const CITY = {

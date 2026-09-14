@@ -6,12 +6,14 @@ import type { LayerHandle } from "../layers/types";
 import {
   BOOKMARKS,
   EXAGGERATION,
+  LAYERS,
   QUALITY,
   type QualityPreset,
 } from "../scene/sceneConfig";
 import { configureAtmosphere } from "./atmosphere";
-import { flyToBookmark } from "./camera";
+import { type CameraPose, flyToCamera, getCameraPose } from "./camera";
 import { createViewer } from "./createViewer";
+import { readUrlViewState } from "./urlState";
 
 export interface SceneStats {
   fps: number;
@@ -34,6 +36,7 @@ export class SceneController {
   private pointCloud: PointCloudHandle | null = null;
   private disposed = false;
   private detachStats?: () => void;
+  private detachCameraSync?: () => void;
 
   constructor(container: HTMLElement) {
     this.viewer = createViewer(container);
@@ -41,30 +44,52 @@ export class SceneController {
     (window as unknown as { __scene?: Viewer }).__scene = this.viewer;
   }
 
-  async init(onStats: (s: SceneStats) => void): Promise<void> {
+  async init(
+    onStats: (s: SceneStats) => void,
+    onCameraChange: (pose: CameraPose) => void,
+  ): Promise<void> {
     const { viewer } = this;
+    const urlState = readUrlViewState();
     configureAtmosphere(viewer);
     this.setQuality("workstation");
 
     viewer.scene.terrainProvider = await createTerrainProvider();
     if (this.disposed) return;
-    this.setVerticalExaggeration(EXAGGERATION.default);
+    const initialExaggeration = urlState.exaggeration ?? EXAGGERATION.default;
+    this.setVerticalExaggeration(initialExaggeration);
 
-    const demSurface = await addDemSurface(viewer, EXAGGERATION.default);
+    const demSurface = await addDemSurface(viewer, initialExaggeration);
     if (this.disposed) return;
     if (demSurface) {
       this.demSurface = demSurface;
       this.register(demSurface);
     }
 
-    const pointCloud = await addPointCloud(viewer, EXAGGERATION.default);
+    const pointCloud = await addPointCloud(viewer, initialExaggeration);
     if (this.disposed) return;
     if (pointCloud) {
       this.pointCloud = pointCloud;
       this.register(pointCloud);
     }
 
-    flyToBookmark(viewer, BOOKMARKS[0], 0);
+    // Reconcile each registered layer's actual visibility with the URL (or
+    // its configured default) -- the layer modules themselves always start
+    // visible, so without this a `defaultVisible: false` config, or a URL
+    // that hides a layer, would be reflected in the UI checkbox but not in
+    // what's actually rendered.
+    for (const [id, handle] of this.layers) {
+      const visible = urlState.visibleLayers
+        ? urlState.visibleLayers.includes(id)
+        : (LAYERS.find((l) => l.id === id)?.defaultVisible ?? true);
+      handle.setVisible(visible);
+    }
+
+    flyToCamera(viewer, urlState.camera ?? BOOKMARKS[0], 0);
+    onCameraChange(getCameraPose(viewer));
+
+    const onMoveEnd = () => onCameraChange(getCameraPose(viewer));
+    viewer.camera.moveEnd.addEventListener(onMoveEnd);
+    this.detachCameraSync = () => viewer.camera.moveEnd.removeEventListener(onMoveEnd);
 
     this.startStatsPump(onStats);
   }
@@ -87,11 +112,6 @@ export class SceneController {
 
   setLayerVisible(id: string, visible: boolean): void {
     this.layers.get(id)?.setVisible(visible);
-  }
-
-  flyTo(bookmarkId: string): void {
-    const b = BOOKMARKS.find((x) => x.id === bookmarkId);
-    if (b) flyToBookmark(this.viewer, b);
   }
 
   setQuality(preset: QualityPreset): void {
@@ -135,6 +155,7 @@ export class SceneController {
   destroy(): void {
     this.disposed = true;
     this.detachStats?.();
+    this.detachCameraSync?.();
     if (!this.viewer.isDestroyed()) this.viewer.destroy();
   }
 }

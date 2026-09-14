@@ -101,29 +101,6 @@ body,
   gap: 6px;
 }
 
-.chip {
-  appearance: none;
-  text-align: left;
-  padding: 7px 10px;
-  font-size: 13px;
-  color: var(--text);
-  background: rgba(148, 163, 184, 0.1);
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-
-.chip:hover {
-  background: rgba(148, 163, 184, 0.2);
-}
-
-.chip--active {
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-
 .toggle-row {
   display: flex;
   align-items: center;
